@@ -80,6 +80,13 @@ export async function fetchWhatsAppLines() {
   return apiFetch<any[]>('/whatsapp-lines');
 }
 
+export async function updateWhatsAppLine(id: string, data: Record<string, any>) {
+  return apiFetch<any>(`/whatsapp-lines/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
 // Evolution API Management
 export async function fetchEvolutionInstances() {
   return apiFetch<any[]>('/evolution/instances');

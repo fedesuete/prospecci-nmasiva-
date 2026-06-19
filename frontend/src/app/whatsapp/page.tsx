@@ -12,9 +12,10 @@ import {
   disconnectWhatsAppLine,
   deleteWhatsAppLine,
   setupWhatsAppWebhook,
+  updateWhatsAppLine,
 } from '@/lib/api';
 import Link from 'next/link';
-import { Phone, Wifi, WifiOff, AlertTriangle, Plus, QrCode, RefreshCw, Trash2, Link as LinkIcon, Download } from 'lucide-react';
+import { Phone, Wifi, WifiOff, AlertTriangle, Plus, QrCode, RefreshCw, Trash2, Link as LinkIcon, Download, Settings } from 'lucide-react';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   active: { label: 'Conectada', color: 'bg-green-100 text-green-700' },
@@ -31,6 +32,7 @@ export default function WhatsAppPage() {
   const [showImport, setShowImport] = useState(false);
   const [qrData, setQrData] = useState<{ instanceName: string; qrcode: string } | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [editLine, setEditLine] = useState<any | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -321,6 +323,13 @@ export default function WhatsAppPage() {
                     </div>
                   </div>
 
+                  {/* Config info */}
+                  <div className="flex gap-3 text-xs text-gray-500 mb-3">
+                    <span>Horario: {line.send_hour_start ?? 9}:00 - {line.send_hour_end ?? 19}:00</span>
+                    <span>Dias: {(line.send_days ?? ['lun','mar','mie','jue','vie']).join(', ')}</span>
+                    <span>Delay: {Math.round((line.delay_min_seconds ?? 210) / 60)}-{Math.round((line.delay_max_seconds ?? 270) / 60)} min</span>
+                  </div>
+
                   {line.status === 'warming_up' && line.warmup_start_date && (
                     <p className="text-xs text-yellow-600 mb-3">
                       En calentamiento desde {line.warmup_start_date} · +{line.warmup_daily_increment}/dia
@@ -329,6 +338,12 @@ export default function WhatsAppPage() {
 
                   {/* Acciones */}
                   <div className="flex gap-2 flex-wrap">
+                    <button
+                      onClick={() => setEditLine(line)}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-gray-50 text-gray-700 rounded-lg text-xs hover:bg-gray-100"
+                    >
+                      <Settings size={14} /> Configurar
+                    </button>
                     {(line.status === 'paused' || line.status === 'warming_up') && (
                       <button
                         onClick={() => handleConnect(line.instance_name)}
@@ -374,7 +389,208 @@ export default function WhatsAppPage() {
             })
           )}
         </div>
+
+        {/* Modal editar linea */}
+        {editLine && (
+          <EditLineModal
+            line={editLine}
+            onSave={async (data) => {
+              await updateWhatsAppLine(editLine.id, data);
+              setEditLine(null);
+              loadData();
+            }}
+            onClose={() => setEditLine(null)}
+          />
+        )}
       </main>
+    </div>
+  );
+}
+
+function EditLineModal({
+  line,
+  onSave,
+  onClose,
+}: {
+  line: any;
+  onSave: (data: Record<string, any>) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [displayName, setDisplayName] = useState(line.display_name);
+  const [dailyLimit, setDailyLimit] = useState(line.daily_limit);
+  const [status, setStatus] = useState(line.status);
+  const [hourStart, setHourStart] = useState(line.send_hour_start ?? 9);
+  const [hourEnd, setHourEnd] = useState(line.send_hour_end ?? 19);
+  const [delayMin, setDelayMin] = useState(line.delay_min_seconds ?? 210);
+  const [delayMax, setDelayMax] = useState(line.delay_max_seconds ?? 270);
+  const [sendDays, setSendDays] = useState<string[]>(line.send_days ?? ['lun','mar','mie','jue','vie']);
+  const [saving, setSaving] = useState(false);
+
+  const allDays = [
+    { key: 'lun', label: 'Lun' },
+    { key: 'mar', label: 'Mar' },
+    { key: 'mie', label: 'Mie' },
+    { key: 'jue', label: 'Jue' },
+    { key: 'vie', label: 'Vie' },
+    { key: 'sab', label: 'Sab' },
+    { key: 'dom', label: 'Dom' },
+  ];
+
+  const toggleDay = (day: string) => {
+    setSendDays(sendDays.includes(day)
+      ? sendDays.filter(d => d !== day)
+      : [...sendDays, day]
+    );
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSave({
+        display_name: displayName,
+        daily_limit: dailyLimit,
+        status,
+        send_hour_start: hourStart,
+        send_hour_end: hourEnd,
+        send_days: sendDays,
+        delay_min_seconds: delayMin,
+        delay_max_seconds: delayMax,
+      });
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-2xl p-6 max-w-lg w-full mx-4" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-lg font-bold text-gray-900 mb-4">Configurar: {line.display_name}</h3>
+        <p className="text-xs text-gray-500 mb-4 font-mono">{line.phone_number} · {line.instance_name}</p>
+
+        <div className="space-y-4">
+          {/* Nombre y estado */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Nombre</label>
+              <input
+                type="text"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Estado</label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="active">Activa</option>
+                <option value="warming_up">Calentando</option>
+                <option value="paused">Pausada</option>
+                <option value="banned">Baneada</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Limite diario */}
+          <div>
+            <label className="text-xs font-medium text-gray-500 block mb-1">Limite diario de mensajes</label>
+            <input
+              type="number"
+              value={dailyLimit}
+              onChange={(e) => setDailyLimit(parseInt(e.target.value) || 0)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            />
+          </div>
+
+          {/* Horario */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Hora inicio</label>
+              <select
+                value={hourStart}
+                onChange={(e) => setHourStart(parseInt(e.target.value))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              >
+                {Array.from({ length: 24 }, (_, i) => (
+                  <option key={i} value={i}>{i}:00</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Hora fin</label>
+              <select
+                value={hourEnd}
+                onChange={(e) => setHourEnd(parseInt(e.target.value))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              >
+                {Array.from({ length: 24 }, (_, i) => (
+                  <option key={i} value={i}>{i}:00</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Dias */}
+          <div>
+            <label className="text-xs font-medium text-gray-500 block mb-1">Dias de envio</label>
+            <div className="flex gap-2">
+              {allDays.map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => toggleDay(key)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    sendDays.includes(key)
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Delay entre mensajes */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Delay minimo (segundos)</label>
+              <input
+                type="number"
+                value={delayMin}
+                onChange={(e) => setDelayMin(parseInt(e.target.value) || 60)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              />
+              <p className="text-xs text-gray-400 mt-0.5">{Math.round(delayMin / 60)} min</p>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Delay maximo (segundos)</label>
+              <input
+                type="number"
+                value={delayMax}
+                onChange={(e) => setDelayMax(parseInt(e.target.value) || 120)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              />
+              <p className="text-xs text-gray-400 mt-0.5">{Math.round(delayMax / 60)} min</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-2 justify-end mt-6">
+          <button onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-lg text-sm">Cancelar</button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm"
+          >
+            {saving ? 'Guardando...' : 'Guardar'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

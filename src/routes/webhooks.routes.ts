@@ -164,13 +164,51 @@ export async function webhooksRoutes(app: FastifyInstance) {
   // Gestión de WhatsApp Lines + Evolution API
   // ============================================
 
-  // Listar líneas de nuestra DB
+  // Listar lineas de nuestra DB
   app.get('/api/whatsapp-lines', async (_request, reply) => {
     const data = await query('SELECT * FROM whatsapp_lines ORDER BY created_at ASC');
     return reply.send(data);
   });
 
   // Listar instancias directamente desde Evolution API
+  // Editar configuracion de una linea
+  app.patch('/api/whatsapp-lines/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = request.body as {
+      display_name?: string;
+      daily_limit?: number;
+      status?: string;
+      send_hour_start?: number;
+      send_hour_end?: number;
+      send_days?: string[];
+      delay_min_seconds?: number;
+      delay_max_seconds?: number;
+    };
+
+    const fields: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    if (body.display_name !== undefined) { fields.push(`display_name = $${idx++}`); values.push(body.display_name); }
+    if (body.daily_limit !== undefined) { fields.push(`daily_limit = $${idx++}`); values.push(body.daily_limit); }
+    if (body.status !== undefined) { fields.push(`status = $${idx++}`); values.push(body.status); }
+    if (body.send_hour_start !== undefined) { fields.push(`send_hour_start = $${idx++}`); values.push(body.send_hour_start); }
+    if (body.send_hour_end !== undefined) { fields.push(`send_hour_end = $${idx++}`); values.push(body.send_hour_end); }
+    if (body.send_days !== undefined) { fields.push(`send_days = $${idx++}`); values.push(body.send_days); }
+    if (body.delay_min_seconds !== undefined) { fields.push(`delay_min_seconds = $${idx++}`); values.push(body.delay_min_seconds); }
+    if (body.delay_max_seconds !== undefined) { fields.push(`delay_max_seconds = $${idx++}`); values.push(body.delay_max_seconds); }
+
+    if (fields.length === 0) return reply.status(400).send({ error: 'Nada para actualizar' });
+
+    values.push(id);
+    const data = await queryOne(
+      `UPDATE whatsapp_lines SET ${fields.join(', ')}, updated_at = now() WHERE id = $${idx} RETURNING *`,
+      values
+    );
+
+    return reply.send(data);
+  });
+
   app.get('/api/evolution/instances', async (_request, reply) => {
     try {
       const instances = await evolutionFetch('/instance/fetchInstances');
