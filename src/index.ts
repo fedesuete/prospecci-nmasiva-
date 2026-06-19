@@ -8,6 +8,7 @@ import { messagesRoutes } from './routes/messages.routes.js';
 import { inboxRoutes } from './routes/inbox.routes.js';
 import { webhooksRoutes } from './routes/webhooks.routes.js';
 import { databasesRoutes } from './routes/databases.routes.js';
+import { deployRoutes } from './routes/deploy.routes.js';
 import { authMiddleware } from './middleware/auth.js';
 
 const app = Fastify({ logger: true });
@@ -43,6 +44,7 @@ async function start() {
   await app.register(inboxRoutes);
   await app.register(webhooksRoutes);
   await app.register(databasesRoutes);
+  await app.register(deployRoutes);
 
   // Arrancar servidor
   await app.listen({ port: env.PORT, host: '0.0.0.0' });
