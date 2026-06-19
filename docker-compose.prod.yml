@@ -1,0 +1,63 @@
+services:
+  prospeccion-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: prospeccion-api
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgres://postgres:b395dd333e170341efb7@testfederico_evolution-api-db:5432/prospeccion
+      - REDIS_URL=redis://default:46a0e41c45782434e10b@testfederico_evolution-api-redis:6379
+      - EVOLUTION_API_URL=http://testfederico_evolution-api:8080
+      - EVOLUTION_API_KEY=429683C4C977415CAAFCCE10F7D57E11
+      - PORT=3001
+      - NODE_ENV=production
+      - API_KEY=prospeccion-api-key-2026
+      - TIMEZONE=America/Argentina/Buenos_Aires
+      - FB_VERIFY_TOKEN=prospeccion-fb-verify
+      - AUDIO_STORAGE_PATH=/app/storage/audios
+    ports:
+      - "3001:3001"
+    volumes:
+      - audio_storage:/app/storage/audios
+    networks:
+      - easypanel-testfederico
+
+  prospeccion-sender:
+    build:
+      context: .
+      dockerfile: Dockerfile.sender
+    container_name: prospeccion-sender
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgres://postgres:b395dd333e170341efb7@testfederico_evolution-api-db:5432/prospeccion
+      - EVOLUTION_API_URL=http://testfederico_evolution-api:8080
+      - EVOLUTION_API_KEY=429683C4C977415CAAFCCE10F7D57E11
+      - NODE_ENV=production
+      - TIMEZONE=America/Argentina/Buenos_Aires
+      - AUDIO_STORAGE_PATH=/app/storage/audios
+    volumes:
+      - audio_storage:/app/storage/audios
+    networks:
+      - easypanel-testfederico
+
+  prospeccion-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: prospeccion-frontend
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      - API_URL=http://prospeccion-api:3001
+      - PORT=3002
+    networks:
+      - easypanel-testfederico
+
+volumes:
+  audio_storage:
+
+networks:
+  easypanel-testfederico:
+    external: true
