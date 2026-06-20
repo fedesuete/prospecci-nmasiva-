@@ -308,8 +308,17 @@ export default function WhatsAppPage() {
                       {/* Boton prospeccion ON/OFF */}
                       <button
                         onClick={async () => {
-                          await toggleProspecting(line.id);
-                          loadData();
+                          try {
+                            const updated = await toggleProspecting(line.id);
+                            // Actualizacion instantanea sin recargar toda la pagina
+                            setLines((prev) =>
+                              prev.map((l) =>
+                                l.id === line.id ? { ...l, prospecting_active: updated.prospecting_active } : l
+                              )
+                            );
+                          } catch (err) {
+                            alert('No se pudo cambiar la prospección: ' + (err as Error).message);
+                          }
                         }}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
                           line.prospecting_active
