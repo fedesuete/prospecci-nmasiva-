@@ -171,6 +171,37 @@ export async function webhooksRoutes(app: FastifyInstance) {
   });
 
   // Listar instancias directamente desde Evolution API
+  // Toggle prospeccion ON/OFF
+  app.post('/api/whatsapp-lines/:id/toggle-prospecting', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const data = await queryOne(
+      `UPDATE whatsapp_lines SET prospecting_active = NOT prospecting_active, updated_at = now()
+       WHERE id = $1 RETURNING id, display_name, prospecting_active`,
+      [id]
+    );
+    if (!data) return reply.status(404).send({ error: 'Linea no encontrada' });
+    console.log(`[prospeccion] ${data.display_name}: ${data.prospecting_active ? 'ACTIVADA' : 'DESACTIVADA'}`);
+    return reply.send(data);
+  });
+
+  // Estado de prospeccion de todas las lineas
+  app.get('/api/whatsapp-lines/prospecting-status', async (_request, reply) => {
+    const lines = await query(`
+      SELECT wl.id, wl.display_name, wl.instance_name, wl.phone_number, wl.status,
+             wl.prospecting_active, wl.sent_today, wl.daily_limit,
+             wl.send_hour_start, wl.send_hour_end, wl.send_days,
+             (SELECT COUNT(*) FROM leads l WHERE l.assigned_line_id = wl.id AND l.pipeline_status = 'nuevo'
+              AND l.do_not_contact = false
+              AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.lead_id = l.id AND m.direction = 'outbound' AND m.channel_id = 'whatsapp')
+             ) as leads_pendientes,
+             (SELECT COUNT(*) FROM audio_variants av WHERE av.whatsapp_line_id = wl.id AND av.is_active = true
+             ) as audios_count
+      FROM whatsapp_lines wl
+      ORDER BY wl.created_at ASC
+    `);
+    return reply.send(lines);
+  });
+
   // Editar configuracion de una linea
   app.patch('/api/whatsapp-lines/:id', async (request, reply) => {
     const { id } = request.params as { id: string };

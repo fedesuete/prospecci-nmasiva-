@@ -9,6 +9,8 @@ import { inboxRoutes } from './routes/inbox.routes.js';
 import { webhooksRoutes } from './routes/webhooks.routes.js';
 import { databasesRoutes } from './routes/databases.routes.js';
 import { deployRoutes } from './routes/deploy.routes.js';
+import { authRoutes } from './routes/auth.routes.js';
+import { usersRoutes } from './routes/users.routes.js';
 import { authMiddleware } from './middleware/auth.js';
 
 const app = Fastify({ logger: true });
@@ -24,10 +26,11 @@ async function start() {
 
   // Auth middleware (excepto webhooks que tienen su propia verificación)
   app.addHook('onRequest', async (request, reply) => {
-    // No autenticar webhooks ni health check
+    // No autenticar webhooks, health check ni login
     if (
       request.url.startsWith('/api/webhooks/') ||
-      request.url === '/health'
+      request.url === '/health' ||
+      request.url === '/api/auth/login'
     ) {
       return;
     }
@@ -38,6 +41,8 @@ async function start() {
   app.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
 
   // Rutas
+  await app.register(authRoutes);
+  await app.register(usersRoutes);
   await app.register(leadsRoutes);
   await app.register(sequencesRoutes);
   await app.register(messagesRoutes);

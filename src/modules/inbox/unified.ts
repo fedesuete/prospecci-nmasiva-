@@ -3,6 +3,7 @@ import { query, queryOne } from '../../config/database.js';
 export interface InboxFilters {
   channelId?: string;
   lineId?: string;
+  allowedLineIds?: string[] | null; // null = todas las líneas (admin/servicio)
   limit?: number;
   offset?: number;
 }
@@ -10,6 +11,11 @@ export interface InboxFilters {
 export async function getUnifiedInbox(filters: InboxFilters = {}) {
   const limit = filters.limit ?? 50;
   const offset = filters.offset ?? 0;
+
+  // Agente sin líneas asignadas: no ve nada
+  if (filters.allowedLineIds !== null && filters.allowedLineIds !== undefined && filters.allowedLineIds.length === 0) {
+    return { messages: [], total: 0 };
+  }
 
   const conditions = ["m.direction = 'inbound'"];
   const params: any[] = [];
@@ -21,8 +27,14 @@ export async function getUnifiedInbox(filters: InboxFilters = {}) {
   }
 
   if (filters.lineId) {
-    conditions.push(`l.assigned_line_id = $${paramIdx++}`);
+    conditions.push(`m.whatsapp_line_id = $${paramIdx++}`);
     params.push(filters.lineId);
+  }
+
+  // Restricción por líneas del empleado
+  if (filters.allowedLineIds) {
+    conditions.push(`m.whatsapp_line_id = ANY($${paramIdx++})`);
+    params.push(filters.allowedLineIds);
   }
 
   const where = conditions.join(' AND ');

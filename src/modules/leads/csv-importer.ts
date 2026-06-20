@@ -19,6 +19,7 @@ export interface CsvImportResult {
   imported: number;
   updated: number;
   skipped: number;
+  already_contacted: number; // Leads que ya fueron contactados previamente (NO se les va a enviar de nuevo)
   errors: Array<{ row: number; phone?: string; reasons: string[] }>;
 }
 
@@ -261,6 +262,7 @@ async function processRows(
     imported: 0,
     updated: 0,
     skipped: 0,
+    already_contacted: 0,
     errors: [],
   };
 
@@ -316,11 +318,21 @@ async function processRows(
 
     try {
       const existing = await findLeadByPhone(phone);
-      await upsertLead(leadData);
 
+      // PROTECCION ANTI-REENVIO: si el lead ya existe y ya fue contactado, NO cambiar su estado
+      // Solo se importa como "nuevo" si nunca existió antes
       if (existing) {
-        result.updated++;
+        // NUNCA resetear pipeline_status de un lead existente
+        if (existing.pipeline_status !== 'nuevo') {
+          // Ya fue contactado — contar pero NO enviar de nuevo
+          result.already_contacted++;
+          result.errors.push({ row: rowNum, phone, reasons: [`Ya contactado (estado: ${existing.pipeline_status}) - NO se le va a enviar de nuevo`] });
+        } else {
+          await upsertLead(leadData);
+          result.updated++;
+        }
       } else {
+        await upsertLead(leadData);
         result.imported++;
       }
     } catch (err) {

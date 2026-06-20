@@ -216,6 +216,12 @@ export default function DatabasesPage() {
                       <span className="text-green-600">{assignResult[db.id].imported} nuevos</span>
                       {' - '}
                       <span className="text-blue-600">{assignResult[db.id].updated} actualizados</span>
+                      {assignResult[db.id].already_contacted > 0 && (
+                        <>
+                          {' - '}
+                          <span className="text-orange-600 font-medium">{assignResult[db.id].already_contacted} ya contactados (protegidos)</span>
+                        </>
+                      )}
                       {' - '}
                       <span className="text-gray-500">{assignResult[db.id].skipped} omitidos</span>
                     </div>

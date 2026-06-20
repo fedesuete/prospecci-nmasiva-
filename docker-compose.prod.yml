@@ -13,6 +13,7 @@ services:
       - PORT=3001
       - NODE_ENV=production
       - API_KEY=prospeccion-api-key-2026
+      - JWT_SECRET=m8dQht0MWZm6F0FUPEQM3Z4GkEJtlPHp8OGt9KA8
       - TIMEZONE=America/Argentina/Buenos_Aires
       - FB_VERIFY_TOKEN=prospeccion-fb-verify
       - AUDIO_STORAGE_PATH=/app/storage/audios

@@ -31,6 +31,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   TIMEZONE: z.string().default('America/Argentina/Buenos_Aires'),
   API_KEY: z.string().default('dev-key-cambiar-en-produccion'),
+  JWT_SECRET: z.string().default('prospeccion-jwt-secret-cambiar'),
 
   // Audio
   AUDIO_STORAGE_PATH: z.string().default('./storage/audios'),

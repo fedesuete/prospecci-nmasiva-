@@ -1,154 +1,249 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Sidebar } from '@/components/sidebar';
-import { fetchInbox, fetchWhatsAppLines } from '@/lib/api';
-import { CHANNEL_LABELS, PIPELINE_LABELS, PIPELINE_COLORS, formatDate } from '@/lib/utils';
-import { Inbox, RefreshCw } from 'lucide-react';
+import { fetchConversations, fetchThread, sendReply } from '@/lib/api';
+import { Inbox, Search, Send, Loader2, Phone } from 'lucide-react';
+
+function formatTime(dateStr: string) {
+  return new Date(dateStr).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatDay(dateStr: string) {
+  const d = new Date(dateStr);
+  const today = new Date();
+  if (d.toDateString() === today.toDateString()) return formatTime(dateStr);
+  return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+}
 
 export default function InboxPage() {
-  const [messages, setMessages] = useState<any[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [channelFilter, setChannelFilter] = useState('');
-  const [lineFilter, setLineFilter] = useState('');
-  const [lines, setLines] = useState<any[]>([]);
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [thread, setThread] = useState<{ lead: any; line_id: string | null; messages: any[] } | null>(null);
+  const [loadingThread, setLoadingThread] = useState(false);
+  const [search, setSearch] = useState('');
+  const [reply, setReply] = useState('');
+  const [sending, setSending] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const loadData = () => {
-    setLoading(true);
-    const params: Record<string, string> = {};
-    if (channelFilter) params.channel = channelFilter;
-    if (lineFilter) params.line_id = lineFilter;
-
-    fetchInbox(params)
-      .then((res) => {
-        setMessages(res.messages);
-        setTotal(res.total);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    fetchWhatsAppLines().then(setLines).catch(() => {});
+  const loadConversations = useCallback(() => {
+    fetchConversations({ limit: '100' }).then(setConversations).catch(() => {});
   }, []);
 
-  useEffect(() => { loadData(); }, [channelFilter, lineFilter]);
+  const loadThread = useCallback((leadId: string) => {
+    setLoadingThread(true);
+    fetchThread(leadId)
+      .then(setThread)
+      .catch(() => setThread(null))
+      .finally(() => setLoadingThread(false));
+  }, []);
 
-  // Auto-refresh cada 15 segundos
+  // Carga inicial + auto-refresh de la lista
   useEffect(() => {
-    if (!autoRefresh) return;
-    const interval = setInterval(loadData, 15000);
+    loadConversations();
+    const interval = setInterval(loadConversations, 10000);
     return () => clearInterval(interval);
-  }, [autoRefresh, channelFilter, lineFilter]);
+  }, [loadConversations]);
+
+  // Refrescar el hilo abierto cada 8s
+  useEffect(() => {
+    if (!selected) return;
+    const interval = setInterval(() => loadThread(selected), 8000);
+    return () => clearInterval(interval);
+  }, [selected, loadThread]);
+
+  // Scroll al final cuando cambian los mensajes
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [thread?.messages.length]);
+
+  const openConversation = (leadId: string) => {
+    setSelected(leadId);
+    loadThread(leadId);
+    // Limpiar el contador de no leídos localmente
+    setConversations((prev) =>
+      prev.map((c) => (c.lead_id === leadId ? { ...c, unread: '0' } : c))
+    );
+  };
+
+  const handleSend = async () => {
+    if (!reply.trim() || !selected || sending) return;
+    setSending(true);
+    const text = reply;
+    setReply('');
+    try {
+      const res = await sendReply(selected, text);
+      if (!res.success) {
+        alert(res.error || 'No se pudo enviar');
+        setReply(text);
+      } else {
+        loadThread(selected);
+        loadConversations();
+      }
+    } catch (err) {
+      alert((err as Error).message);
+      setReply(text);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const filtered = conversations.filter((c) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    const name = `${c.first_name ?? ''} ${c.last_name ?? ''} ${c.company_name ?? ''}`.toLowerCase();
+    return name.includes(q) || (c.phone ?? '').includes(q);
+  });
 
   return (
-    <div className="flex">
+    <div className="flex h-screen overflow-hidden">
       <Sidebar />
-      <main className="flex-1 p-8">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-bold text-gray-900">Inbox ({total})</h2>
-            {autoRefresh && (
-              <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                Auto-refresh activo
-              </span>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={loadData}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm flex items-center gap-1 hover:bg-gray-50"
-            >
-              <RefreshCw size={14} /> Actualizar
-            </button>
-            <select
-              value={lineFilter}
-              onChange={(e) => setLineFilter(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
-            >
-              <option value="">Todas las lineas</option>
-              {lines.map((line) => (
-                <option key={line.id} value={line.id}>
-                  {line.display_name}
-                </option>
-              ))}
-            </select>
-            <select
-              value={channelFilter}
-              onChange={(e) => setChannelFilter(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
-            >
-              <option value="">Todos los canales</option>
-              <option value="whatsapp">WhatsApp</option>
-              <option value="email">Email</option>
-              <option value="instagram_oficial">Instagram</option>
-            </select>
+
+      {/* Lista de conversaciones */}
+      <div className="w-80 border-r border-gray-200 flex flex-col bg-white">
+        <div className="p-4 border-b border-gray-100">
+          <h2 className="text-lg font-bold text-gray-900 mb-3">Conversaciones</h2>
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar por nombre o teléfono"
+              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-          {loading && messages.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">Cargando...</div>
-          ) : messages.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
-              <Inbox size={48} className="mx-auto mb-4 text-gray-300" />
-              <p>No hay mensajes entrantes</p>
-              <p className="text-sm mt-1">Las respuestas de los leads aparecen aca automaticamente</p>
+        <div className="flex-1 overflow-y-auto">
+          {filtered.length === 0 ? (
+            <div className="p-8 text-center text-gray-400 text-sm">
+              <Inbox size={36} className="mx-auto mb-2 text-gray-300" />
+              No hay conversaciones
             </div>
           ) : (
-            <div className="divide-y divide-gray-100">
-              {messages.map((msg) => {
-                const lead = typeof msg.lead === 'string' ? JSON.parse(msg.lead) : msg.lead;
-                return (
-                  <Link
-                    key={msg.id}
-                    href={`/leads/${msg.lead_id}`}
-                    className="flex items-center gap-4 p-4 hover:bg-gray-50 transition-colors"
-                  >
-                    {/* Avatar */}
-                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-sm flex-shrink-0">
-                      {lead?.first_name?.[0]?.toUpperCase() ?? '?'}
+            filtered.map((c) => {
+              const unread = parseInt(c.unread ?? '0') > 0;
+              const isSel = selected === c.lead_id;
+              return (
+                <button
+                  key={c.lead_id}
+                  onClick={() => openConversation(c.lead_id)}
+                  className={`w-full text-left flex gap-3 p-3 border-b border-gray-50 hover:bg-gray-50 transition-colors ${
+                    isSel ? 'bg-blue-50' : ''
+                  }`}
+                >
+                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm flex-shrink-0">
+                    {c.first_name?.[0]?.toUpperCase() ?? '?'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-sm text-gray-900 truncate">
+                        {c.first_name ?? 'Desconocido'} {c.last_name ?? ''}
+                      </span>
+                      <span className="text-xs text-gray-400 flex-shrink-0">{formatDay(c.created_at)}</span>
                     </div>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-900 text-sm">
-                          {lead?.first_name ?? 'Desconocido'} {lead?.last_name ?? ''}
+                    <div className="flex items-center justify-between gap-2 mt-0.5">
+                      <span className={`text-xs truncate ${unread ? 'text-gray-900 font-medium' : 'text-gray-500'}`}>
+                        {c.direction === 'outbound' ? 'Vos: ' : ''}
+                        {c.content ?? '[Media]'}
+                      </span>
+                      {unread && (
+                        <span className="bg-green-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 flex-shrink-0">
+                          {c.unread}
                         </span>
-                        {lead?.company_name && lead.company_name !== lead.first_name && (
-                          <span className="text-xs text-gray-400">- {lead.company_name}</span>
-                        )}
-                        {lead?.pipeline_status && (
-                          <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${PIPELINE_COLORS[lead.pipeline_status]}`}>
-                            {PIPELINE_LABELS[lead.pipeline_status]}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-gray-600 truncate mt-0.5">
-                        {msg.content ?? '[Media]'}
-                      </p>
+                      )}
                     </div>
-
-                    {/* Canal y fecha */}
-                    <div className="text-right flex-shrink-0">
-                      <span className="text-xs text-gray-400 block">
-                        {CHANNEL_LABELS[msg.channel_id] ?? msg.channel_id}
-                      </span>
-                      <span className="text-xs text-gray-400">
-                        {formatDate(msg.created_at)}
-                      </span>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
+                    {c.line_name && (
+                      <span className="text-[10px] text-gray-400 truncate block mt-0.5">{c.line_name}</span>
+                    )}
+                  </div>
+                </button>
+              );
+            })
           )}
         </div>
-      </main>
+      </div>
+
+      {/* Panel del chat */}
+      <div className="flex-1 flex flex-col bg-gray-50">
+        {!selected ? (
+          <div className="flex-1 flex items-center justify-center text-gray-400">
+            <div className="text-center">
+              <Inbox size={48} className="mx-auto mb-3 text-gray-300" />
+              <p>Elegí una conversación para responder</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Header */}
+            <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm">
+                {thread?.lead?.first_name?.[0]?.toUpperCase() ?? '?'}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-gray-900 text-sm truncate">
+                  {thread?.lead?.first_name ?? ''} {thread?.lead?.last_name ?? ''}
+                </p>
+                <p className="text-xs text-gray-400 flex items-center gap-1">
+                  <Phone size={11} /> {thread?.lead?.phone ?? ''}
+                </p>
+              </div>
+            </div>
+
+            {/* Mensajes */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-2">
+              {loadingThread && !thread ? (
+                <div className="text-center text-gray-400 text-sm">Cargando...</div>
+              ) : (
+                thread?.messages.map((m) => {
+                  const out = m.direction === 'outbound';
+                  return (
+                    <div key={m.id} className={`flex ${out ? 'justify-end' : 'justify-start'}`}>
+                      <div
+                        className={`max-w-[70%] rounded-2xl px-4 py-2 text-sm shadow-sm ${
+                          out
+                            ? 'bg-green-500 text-white rounded-br-sm'
+                            : 'bg-white text-gray-900 border border-gray-100 rounded-bl-sm'
+                        }`}
+                      >
+                        <p className="whitespace-pre-wrap break-words">{m.content ?? '[Media]'}</p>
+                        <p className={`text-[10px] mt-1 text-right ${out ? 'text-green-50' : 'text-gray-400'}`}>
+                          {formatTime(m.created_at)}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Caja de respuesta */}
+            <div className="bg-white border-t border-gray-200 p-4 flex items-end gap-2">
+              <textarea
+                value={reply}
+                onChange={(e) => setReply(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                rows={1}
+                placeholder="Escribí un mensaje... (Enter para enviar)"
+                className="flex-1 resize-none border border-gray-300 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 max-h-32"
+              />
+              <button
+                onClick={handleSend}
+                disabled={sending || !reply.trim()}
+                className="bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white rounded-full w-11 h-11 flex items-center justify-center flex-shrink-0 transition-colors"
+              >
+                {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

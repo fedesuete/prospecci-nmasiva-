@@ -13,9 +13,11 @@ import {
   deleteWhatsAppLine,
   setupWhatsAppWebhook,
   updateWhatsAppLine,
+  toggleProspecting,
+  fetchProspectingStatus,
 } from '@/lib/api';
 import Link from 'next/link';
-import { Phone, Wifi, WifiOff, AlertTriangle, Plus, QrCode, RefreshCw, Trash2, Link as LinkIcon, Download, Settings } from 'lucide-react';
+import { Phone, Wifi, WifiOff, AlertTriangle, Plus, QrCode, RefreshCw, Trash2, Link as LinkIcon, Download, Settings, Play, Pause, AlertCircle } from 'lucide-react';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   active: { label: 'Conectada', color: 'bg-green-100 text-green-700' },
@@ -37,11 +39,11 @@ export default function WhatsAppPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [linesData, evoData] = await Promise.all([
-        fetchWhatsAppLines().catch(() => []),
+      const [prospData, evoData] = await Promise.all([
+        fetchProspectingStatus().catch(() => []),
         fetchEvolutionInstances().catch(() => []),
       ]);
-      setLines(linesData);
+      setLines(prospData);
       setEvoInstances(Array.isArray(evoData) ? evoData : []);
     } catch (err) {
       console.error(err);
@@ -302,7 +304,22 @@ export default function WhatsAppPage() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
+                      {/* Boton prospeccion ON/OFF */}
+                      <button
+                        onClick={async () => {
+                          await toggleProspecting(line.id);
+                          loadData();
+                        }}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                          line.prospecting_active
+                            ? 'bg-green-600 text-white hover:bg-green-700'
+                            : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                        }`}
+                      >
+                        {line.prospecting_active ? <Play size={12} /> : <Pause size={12} />}
+                        {line.prospecting_active ? 'PROSPECTANDO' : 'INACTIVA'}
+                      </button>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${config.color}`}>
                         {config.label}
                       </span>
@@ -322,6 +339,28 @@ export default function WhatsAppPage() {
                       />
                     </div>
                   </div>
+
+                  {/* Alertas */}
+                  {line.prospecting_active && line.leads_pendientes !== undefined && line.leads_pendientes === 0 && (
+                    <div className="flex items-center gap-2 p-2 bg-orange-50 border border-orange-200 rounded-lg mb-3">
+                      <AlertCircle size={14} className="text-orange-600" />
+                      <span className="text-xs text-orange-700 font-medium">Sin leads pendientes - necesita nueva base de datos</span>
+                    </div>
+                  )}
+                  {line.prospecting_active && line.audios_count !== undefined && line.audios_count === 0 && (
+                    <div className="flex items-center gap-2 p-2 bg-red-50 border border-red-200 rounded-lg mb-3">
+                      <AlertCircle size={14} className="text-red-600" />
+                      <span className="text-xs text-red-700 font-medium">Sin audios configurados - subi audios desde el detalle de la linea</span>
+                    </div>
+                  )}
+
+                  {/* Stats de prospeccion */}
+                  {line.leads_pendientes !== undefined && (
+                    <div className="flex gap-4 text-xs text-gray-500 mb-3">
+                      <span className="font-medium">{line.leads_pendientes} leads pendientes</span>
+                      <span>{line.audios_count ?? 0} audios</span>
+                    </div>
+                  )}
 
                   {/* Config info */}
                   <div className="flex gap-3 text-xs text-gray-500 mb-3">
