@@ -392,13 +392,13 @@ export default function WhatsAppPage() {
                     >
                       <Settings size={14} /> Configurar
                     </button>
-                    {(line.status === 'paused' || line.status === 'warming_up') && (
+                    {(line.status === 'paused' || line.status === 'warming_up' || line.status === 'banned') && (
                       <button
                         onClick={() => handleConnect(line.instance_name)}
                         disabled={isLoading}
                         className="flex items-center gap-1 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs hover:bg-green-100 disabled:opacity-50"
                       >
-                        <QrCode size={14} /> {isLoading ? 'Cargando...' : 'Conectar (QR)'}
+                        <QrCode size={14} /> {isLoading ? 'Cargando...' : (line.status === 'banned' ? 'Reconectar (QR)' : 'Conectar (QR)')}
                       </button>
                     )}
                     <button
