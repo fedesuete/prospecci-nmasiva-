@@ -198,36 +198,56 @@ async function processLine(line: any) {
   console.log(`  Resultado: enviados=${sent} errores=${failed} pendientes=${leads.length - sent - failed}`);
 }
 
+const CYCLE_MS = 5 * 60 * 1000;
+
+// Motor INDEPENDIENTE por línea: cada línea prospecta a su propio ritmo, en
+// paralelo con las demás, sin esperar a nadie (máquina de prospección, no cola).
+// Si una línea no tiene leads/horario, vuelve a revisar sola en 5 min.
+async function lineWorker(lineId: string) {
+  while (true) {
+    try {
+      const { rows: [line] } = await pool.query('SELECT * FROM whatsapp_lines WHERE id = $1', [lineId]);
+      if (line && line.prospecting_active && (line.status === 'active' || line.status === 'warming_up')) {
+        const now = getArgentinaTime();
+        console.log(`\n[${now.toLocaleString('es-AR')}] >> ${line.display_name}`);
+        await processLine(line);
+      }
+    } catch (err) {
+      console.error(`[worker ${lineId}] error: ${(err as Error).message}`);
+    }
+    await new Promise((r) => setTimeout(r, CYCLE_MS));
+  }
+}
+
+// Manager: levanta un worker por cada línea y vigila si aparecen líneas nuevas.
 async function main() {
-  console.log('Motor de prospeccion iniciado.');
+  console.log('Motor de prospeccion iniciado (lineas independientes en paralelo).');
+  const workers = new Set<string>();
 
   while (true) {
     try {
-      // Resetear contadores si es nuevo dia
+      // Reset diario de contadores
       await pool.query(`
         UPDATE whatsapp_lines SET sent_today = 0, last_reset_at = CURRENT_DATE
         WHERE last_reset_at < CURRENT_DATE
       `);
 
-      // Obtener lineas con prospeccion activa
-      const { rows: lines } = await pool.query(
-        "SELECT * FROM whatsapp_lines WHERE prospecting_active = true AND status IN ('active', 'warming_up')"
-      );
-
-      if (lines.length > 0) {
-        const now = getArgentinaTime();
-        console.log(`\n[${now.toLocaleString('es-AR')}] ${lines.length} linea(s) con prospeccion activa`);
-
-        // Procesar TODAS las lineas en PARALELO — cada una envia independientemente
-        await Promise.allSettled(lines.map(line => processLine(line)));
+      // Un worker independiente por cada línea (incluye las nuevas)
+      const { rows } = await pool.query('SELECT id FROM whatsapp_lines');
+      for (const r of rows) {
+        if (!workers.has(r.id)) {
+          workers.add(r.id);
+          lineWorker(r.id);
+          console.log(`[motor] worker independiente iniciado para linea ${r.id}`);
+        }
       }
     } catch (err) {
-      console.error('Error en ciclo principal:', (err as Error).message);
+      console.error('Error en el manager:', (err as Error).message);
     }
 
-    // Esperar 5 minutos antes de volver a chequear
-    await new Promise(r => setTimeout(r, 5 * 60 * 1000));
+    // Revisar si hay líneas nuevas cada 60s
+    await new Promise((r) => setTimeout(r, 60 * 1000));
   }
 }
 
-main().catch(e => { console.error(e); process.exit(1); });
+main().catch((e) => { console.error(e); process.exit(1); });
