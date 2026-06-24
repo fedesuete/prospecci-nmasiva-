@@ -22,9 +22,9 @@ export function normalizePhone(raw: string): string | null {
   if (cleaned.startsWith('54')) {
     return tryParse('+' + cleaned) ?? tryParseAR('+' + cleaned);
   }
-  // Si empieza con 0, asumir Argentina (formato local 011-xxxx)
+  // Si empieza con 0, es formato local: probar Paraguay primero (0981...), luego Argentina (011...)
   if (cleaned.startsWith('0')) {
-    return tryParseAR('+54' + cleaned.slice(1));
+    return tryParse('+595' + cleaned.slice(1)) ?? tryParseAR('+54' + cleaned.slice(1));
   }
 
   // Sin código de país: probar Paraguay primero, luego Argentina
