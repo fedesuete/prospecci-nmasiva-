@@ -9,8 +9,9 @@ import {
   deleteDatabase,
   fetchWhatsAppLines,
   generateDatabase,
+  fetchRecommendations,
 } from '@/lib/api';
-import { Upload, Database, Trash2, CheckCircle, AlertCircle, ArrowRight, Sparkles, Loader2, X, MapPin } from 'lucide-react';
+import { Upload, Database, Trash2, CheckCircle, AlertCircle, ArrowRight, Sparkles, Loader2, X, MapPin, Lightbulb, RefreshCw } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 
 export default function DatabasesPage() {
@@ -39,6 +40,31 @@ export default function DatabasesPage() {
   const [generating, setGenerating] = useState(false);
   const [genResult, setGenResult] = useState<any>(null);
   const [genError, setGenError] = useState('');
+  const [suggestions, setSuggestions] = useState<Array<{ rubro: string; zona: string; pais: string }>>([]);
+  const [loadingSugg, setLoadingSugg] = useState(false);
+
+  const loadSuggestions = () => {
+    setLoadingSugg(true);
+    fetchRecommendations(6)
+      .then(setSuggestions)
+      .catch(() => setSuggestions([]))
+      .finally(() => setLoadingSugg(false));
+  };
+
+  const applySuggestion = (s: { rubro: string; zona: string; pais: string }) => {
+    setGenRubro(s.rubro);
+    setGenZona(s.zona);
+    setGenPais(s.pais);
+    setGenResult(null);
+    setGenError('');
+  };
+
+  const openGenerator = () => {
+    setShowGen(true);
+    setGenResult(null);
+    setGenError('');
+    loadSuggestions();
+  };
 
   const handleGenerate = async () => {
     setGenError('');
@@ -58,6 +84,7 @@ export default function DatabasesPage() {
       });
       setGenResult(result);
       loadData();
+      loadSuggestions(); // refrescar ideas (excluye la recién generada)
     } catch (err) {
       setGenError((err as Error).message);
     } finally {
@@ -136,7 +163,7 @@ export default function DatabasesPage() {
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-900">Bases de Datos</h2>
           <button
-            onClick={() => { setShowGen(true); setGenResult(null); setGenError(''); }}
+            onClick={openGenerator}
             className="bg-gradient-to-r from-purple-600 to-blue-600 hover:opacity-90 text-white text-sm font-medium px-4 py-2 rounded-lg flex items-center gap-2"
           >
             <Sparkles size={16} /> Generar base de datos
@@ -338,6 +365,40 @@ export default function DatabasesPage() {
                 Busca negocios reales en Google Maps y crea una base lista para asignar a una línea.
                 Recorre varios barrios hasta juntar la cantidad que pidas.
               </p>
+
+              {/* Sugerencias (ideas que aún no generaste) */}
+              <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-amber-700 flex items-center gap-1">
+                    <Lightbulb size={13} /> Ideas para vos (no generadas aún)
+                  </span>
+                  <button
+                    onClick={loadSuggestions}
+                    disabled={loadingSugg}
+                    className="text-xs text-amber-700 hover:text-amber-900 flex items-center gap-1 disabled:opacity-50"
+                  >
+                    <RefreshCw size={11} className={loadingSugg ? 'animate-spin' : ''} /> Más ideas
+                  </button>
+                </div>
+                {loadingSugg && suggestions.length === 0 ? (
+                  <p className="text-xs text-amber-600">Cargando ideas...</p>
+                ) : suggestions.length === 0 ? (
+                  <p className="text-xs text-amber-600">Sin ideas nuevas por ahora.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {suggestions.map((s, i) => (
+                      <button
+                        key={i}
+                        onClick={() => applySuggestion(s)}
+                        className="text-xs bg-white border border-amber-200 hover:border-amber-400 text-gray-700 rounded-full px-2.5 py-1 transition-colors"
+                        title="Usar esta idea"
+                      >
+                        {s.rubro} en {s.zona}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Rubro</label>

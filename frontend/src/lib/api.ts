@@ -165,6 +165,12 @@ export async function uploadDatabase(formData: FormData) {
   return res.json();
 }
 
+export async function fetchRecommendations(count = 6) {
+  return apiFetch<Array<{ rubro: string; zona: string; pais: string }>>(
+    `/databases/recommendations?count=${count}`
+  );
+}
+
 export async function generateDatabase(data: {
   rubro: string;
   zona: string;

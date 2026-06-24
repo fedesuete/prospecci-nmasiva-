@@ -2,11 +2,20 @@ import type { FastifyInstance } from 'fastify';
 import { query, queryOne } from '../config/database.js';
 import { importCsvBuffer, type CsvImportOptions } from '../modules/leads/csv-importer.js';
 import { generateDatabase } from '../modules/sources/generate-database.js';
+import { getRecommendations } from '../modules/sources/recommendations.js';
 import { parse } from 'csv-parse/sync';
 import { normalizePhone } from '../utils/phone.js';
 import type { LeadTemperature } from '../db/types.js';
 
 export async function databasesRoutes(app: FastifyInstance) {
+  // Recomendaciones de búsqueda (combos rubro+zona no generados aún)
+  app.get('/api/databases/recommendations', async (request, reply) => {
+    const q = request.query as Record<string, string>;
+    const count = q.count ? parseInt(q.count) : 6;
+    const recs = await getRecommendations(Math.min(Math.max(count, 1), 20));
+    return reply.send(recs);
+  });
+
   // Generar una base de datos desde Google Maps (Places API)
   app.post('/api/databases/generate', async (request, reply) => {
     const body = request.body as {
