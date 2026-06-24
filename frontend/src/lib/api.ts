@@ -179,6 +179,9 @@ export async function generateDatabase(data: {
     sin_web: number;
     con_telefono_valido: number;
     guardados: number;
+    zonas_buscadas: number;
+    objetivo: number;
+    alcanzo_objetivo: boolean;
   }>('/databases/generate', {
     method: 'POST',
     body: JSON.stringify(data),

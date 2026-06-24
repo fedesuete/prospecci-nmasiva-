@@ -25,7 +25,7 @@ export async function databasesRoutes(app: FastifyInstance) {
       const result = await generateDatabase({
         rubro: body.rubro.trim(),
         zona: body.zona.trim(),
-        cantidad: Math.min(Math.max(body.cantidad ?? 50, 1), 100),
+        cantidad: Math.min(Math.max(body.cantidad ?? 50, 1), 300),
         soloSinWeb: !!body.solo_sin_web,
         regionCode: body.pais || 'PY',
       });

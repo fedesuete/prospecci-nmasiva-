@@ -89,8 +89,8 @@ export async function searchBusinesses(opts: SearchOptions): Promise<PlaceBusine
     pageToken = data.nextPageToken;
     if (!pageToken || places.length === 0) break;
 
-    // Google pide una breve espera antes de usar el nextPageToken
-    await new Promise((r) => setTimeout(r, 2000));
+    // Breve espera antes de usar el nextPageToken
+    await new Promise((r) => setTimeout(r, 300));
   }
 
   return results.slice(0, opts.max);

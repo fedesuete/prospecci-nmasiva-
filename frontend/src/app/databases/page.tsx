@@ -336,6 +336,7 @@ export default function DatabasesPage() {
             <div className="p-5 space-y-4">
               <p className="text-sm text-gray-500">
                 Busca negocios reales en Google Maps y crea una base lista para asignar a una línea.
+                Recorre varios barrios hasta juntar la cantidad que pidas.
               </p>
 
               <div>
@@ -353,18 +354,22 @@ export default function DatabasesPage() {
                 <input
                   value={genZona}
                   onChange={(e) => setGenZona(e.target.value)}
-                  placeholder="ej: Asunción, Encarnación"
+                  placeholder="ej: CABA, Asunción, Córdoba..."
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                 />
+                <p className="text-xs text-gray-400 mt-1">
+                  Ciudades grandes (CABA, Asunción, Córdoba, Rosario…) se buscan barrio por barrio
+                  automáticamente. También podés poner varios barrios separados por coma.
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Cantidad</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Objetivo (con teléfono)</label>
                   <input
                     type="number"
                     min={1}
-                    max={100}
+                    max={300}
                     value={genCantidad}
                     onChange={(e) => setGenCantidad(parseInt(e.target.value) || 50)}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
@@ -407,9 +412,16 @@ export default function DatabasesPage() {
                     <CheckCircle size={14} /> Base creada: {genResult.name}
                   </div>
                   <div className="text-gray-600 text-xs">
-                    {genResult.encontrados} encontrados · {genResult.sin_web} sin web ·{' '}
-                    <strong>{genResult.guardados} guardados</strong> (con teléfono válido)
+                    {genResult.encontrados} encontrados en {genResult.zonas_buscadas} zona(s) ·{' '}
+                    {genResult.sin_web} sin web ·{' '}
+                    <strong>{genResult.guardados} guardados</strong> (con teléfono)
                   </div>
+                  {genResult.alcanzo_objetivo === false && (
+                    <div className="text-orange-600 text-xs">
+                      No se llegó al objetivo de {genResult.objetivo}: se agotaron los negocios disponibles.
+                      Probá otra zona/rubro o destildá "solo sin web".
+                    </div>
+                  )}
                   <div className="text-gray-500 text-xs">
                     Ya aparece abajo en "Sin asignar" para que la asignes a una línea.
                   </div>
