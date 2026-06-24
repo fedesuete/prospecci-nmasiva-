@@ -368,8 +368,8 @@ export default function DatabasesPage() {
 
             <div className="p-5 space-y-4">
               <p className="text-sm text-gray-500">
-                Busca negocios reales en Google Maps y crea una base lista para asignar a una línea.
-                Recorre varios barrios hasta juntar la cantidad que pidas.
+                Busca negocios reales en Google Maps, <strong>verifica que tengan WhatsApp</strong> y
+                crea una base lista para asignar. Recorre varios barrios hasta juntar la cantidad que pidas.
               </p>
 
               {/* Sugerencias (ideas que aún no generaste) */}
@@ -444,7 +444,7 @@ export default function DatabasesPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Objetivo (con teléfono)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Objetivo (con WhatsApp)</label>
                   <input
                     type="number"
                     min={1}
@@ -493,7 +493,7 @@ export default function DatabasesPage() {
                   <div className="text-gray-600 text-xs">
                     {genResult.encontrados} encontrados en {genResult.zonas_buscadas} zona(s) ·{' '}
                     {genResult.sin_web} sin web ·{' '}
-                    <strong>{genResult.guardados} guardados</strong> (con teléfono)
+                    <strong>{genResult.guardados} guardados</strong> (con WhatsApp ✓)
                   </div>
                   {genResult.alcanzo_objetivo === false && (
                     <div className="text-orange-600 text-xs">

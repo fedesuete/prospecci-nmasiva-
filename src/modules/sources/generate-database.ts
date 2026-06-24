@@ -1,15 +1,17 @@
 import { searchBusinesses } from './google-places.js';
 import { expandLocalities } from './localities.js';
 import { RUBROS } from './recommendations.js';
+import { filterWithWhatsApp } from './whatsapp-check.js';
 import { normalizePhone } from '../../utils/phone.js';
 import { queryOne } from '../../config/database.js';
 
 export interface GenerateOptions {
   rubro: string;
   zona: string;
-  cantidad: number;        // OBJETIVO de leads con teléfono válido
+  cantidad: number;        // OBJETIVO de leads con WhatsApp
   soloSinWeb: boolean;
   todosLosRubros?: boolean; // barrer todos los rubros de la zona
+  soloConWhatsApp?: boolean; // verificar y dejar solo números con WhatsApp (default true)
   regionCode?: string;      // 'PY' (default) | 'AR' | ...
 }
 
@@ -84,6 +86,8 @@ export async function generateDatabase(opts: GenerateOptions): Promise<GenerateR
     busquedas++;
     encontrados += businesses.length;
 
+    // Recolectar candidatos nuevos de este lote (rubro, sin web, teléfono válido, no duplicado)
+    const batch: Array<{ name: string; phone: string; rubro: string }> = [];
     for (const b of businesses) {
       const hasWeb = !!b.website;
       if (!hasWeb) sinWeb++;
@@ -92,9 +96,19 @@ export async function generateDatabase(opts: GenerateOptions): Promise<GenerateR
       const phone = b.phone ? normalizePhone(b.phone) : null;
       if (!phone || seen.has(phone)) continue;
       seen.add(phone);
-      validPhones++;
-      lines.push([csvCell(b.name), phone, csvCell(step.rubro), csvCell(opts.zona)].join(','));
+      batch.push({ name: b.name, phone, rubro: step.rubro });
+    }
 
+    // Verificar WhatsApp y quedarse solo con los que tienen (salvo que se desactive)
+    let validos = batch;
+    if (opts.soloConWhatsApp !== false && batch.length > 0) {
+      const conWa = new Set(await filterWithWhatsApp(batch.map((x) => x.phone)));
+      validos = batch.filter((x) => conWa.has(x.phone));
+    }
+
+    for (const x of validos) {
+      lines.push([csvCell(x.name), x.phone, csvCell(x.rubro), csvCell(opts.zona)].join(','));
+      validPhones++;
       if (validPhones >= opts.cantidad) break;
     }
   }
