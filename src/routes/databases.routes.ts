@@ -1,11 +1,40 @@
 import type { FastifyInstance } from 'fastify';
 import { query, queryOne } from '../config/database.js';
 import { importCsvBuffer, type CsvImportOptions } from '../modules/leads/csv-importer.js';
+import { generateDatabase } from '../modules/sources/generate-database.js';
 import { parse } from 'csv-parse/sync';
 import { normalizePhone } from '../utils/phone.js';
 import type { LeadTemperature } from '../db/types.js';
 
 export async function databasesRoutes(app: FastifyInstance) {
+  // Generar una base de datos desde Google Maps (Places API)
+  app.post('/api/databases/generate', async (request, reply) => {
+    const body = request.body as {
+      rubro?: string;
+      zona?: string;
+      cantidad?: number;
+      solo_sin_web?: boolean;
+      pais?: string;
+    };
+
+    if (!body.rubro?.trim() || !body.zona?.trim()) {
+      return reply.status(400).send({ error: 'Rubro y zona son requeridos' });
+    }
+
+    try {
+      const result = await generateDatabase({
+        rubro: body.rubro.trim(),
+        zona: body.zona.trim(),
+        cantidad: Math.min(Math.max(body.cantidad ?? 50, 1), 100),
+        soloSinWeb: !!body.solo_sin_web,
+        regionCode: body.pais || 'PY',
+      });
+      return reply.send(result);
+    } catch (err) {
+      return reply.status(500).send({ error: (err as Error).message });
+    }
+  });
+
   // Listar todas las bases de datos
   app.get('/api/databases', async (_request, reply) => {
     const data = await query(

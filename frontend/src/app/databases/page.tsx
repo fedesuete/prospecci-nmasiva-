@@ -8,8 +8,9 @@ import {
   assignDatabase,
   deleteDatabase,
   fetchWhatsAppLines,
+  generateDatabase,
 } from '@/lib/api';
-import { Upload, Database, Trash2, CheckCircle, AlertCircle, ArrowRight } from 'lucide-react';
+import { Upload, Database, Trash2, CheckCircle, AlertCircle, ArrowRight, Sparkles, Loader2, X, MapPin } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 
 export default function DatabasesPage() {
@@ -27,6 +28,42 @@ export default function DatabasesPage() {
   const [niche, setNiche] = useState('');
   const [city, setCity] = useState('');
   const [rubro, setRubro] = useState('');
+
+  // Generador (Google Maps)
+  const [showGen, setShowGen] = useState(false);
+  const [genRubro, setGenRubro] = useState('');
+  const [genZona, setGenZona] = useState('');
+  const [genCantidad, setGenCantidad] = useState(50);
+  const [genPais, setGenPais] = useState('PY');
+  const [genSoloSinWeb, setGenSoloSinWeb] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [genResult, setGenResult] = useState<any>(null);
+  const [genError, setGenError] = useState('');
+
+  const handleGenerate = async () => {
+    setGenError('');
+    if (!genRubro.trim() || !genZona.trim()) {
+      setGenError('Completá el rubro y la zona');
+      return;
+    }
+    setGenerating(true);
+    setGenResult(null);
+    try {
+      const result = await generateDatabase({
+        rubro: genRubro.trim(),
+        zona: genZona.trim(),
+        cantidad: genCantidad,
+        solo_sin_web: genSoloSinWeb,
+        pais: genPais,
+      });
+      setGenResult(result);
+      loadData();
+    } catch (err) {
+      setGenError((err as Error).message);
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const loadData = () => {
     setLoading(true);
@@ -96,7 +133,15 @@ export default function DatabasesPage() {
     <div className="flex">
       <Sidebar />
       <main className="flex-1 p-8">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">Bases de Datos</h2>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-900">Bases de Datos</h2>
+          <button
+            onClick={() => { setShowGen(true); setGenResult(null); setGenError(''); }}
+            className="bg-gradient-to-r from-purple-600 to-blue-600 hover:opacity-90 text-white text-sm font-medium px-4 py-2 rounded-lg flex items-center gap-2"
+          >
+            <Sparkles size={16} /> Generar base de datos
+          </button>
+        </div>
 
         {/* Upload */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
@@ -273,6 +318,124 @@ export default function DatabasesPage() {
           )}
         </div>
       </main>
+
+      {/* Modal: Generar base de datos desde Google Maps */}
+      {showGen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <Sparkles size={18} className="text-purple-600" />
+                <h3 className="font-bold text-gray-900">Generar base de datos</h3>
+              </div>
+              <button onClick={() => setShowGen(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-500">
+                Busca negocios reales en Google Maps y crea una base lista para asignar a una línea.
+              </p>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Rubro</label>
+                <input
+                  value={genRubro}
+                  onChange={(e) => setGenRubro(e.target.value)}
+                  placeholder="ej: peluquerías, restaurantes, gimnasios"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Zona / ciudad</label>
+                <input
+                  value={genZona}
+                  onChange={(e) => setGenZona(e.target.value)}
+                  placeholder="ej: Asunción, Encarnación"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cantidad</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={genCantidad}
+                    onChange={(e) => setGenCantidad(parseInt(e.target.value) || 50)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">País</label>
+                  <select
+                    value={genPais}
+                    onChange={(e) => setGenPais(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  >
+                    <option value="PY">Paraguay</option>
+                    <option value="AR">Argentina</option>
+                    <option value="UY">Uruguay</option>
+                    <option value="BO">Bolivia</option>
+                    <option value="BR">Brasil</option>
+                  </select>
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 text-sm text-gray-700 bg-purple-50 border border-purple-100 rounded-lg px-3 py-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={genSoloSinWeb}
+                  onChange={(e) => setGenSoloSinWeb(e.target.checked)}
+                />
+                <span>Solo negocios <strong>SIN página web</strong> (recomendado)</span>
+              </label>
+
+              {genError && (
+                <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                  {genError}
+                </div>
+              )}
+
+              {genResult && (
+                <div className="text-sm bg-green-50 border border-green-100 rounded-lg p-3 space-y-1">
+                  <div className="flex items-center gap-1 text-green-700 font-medium">
+                    <CheckCircle size={14} /> Base creada: {genResult.name}
+                  </div>
+                  <div className="text-gray-600 text-xs">
+                    {genResult.encontrados} encontrados · {genResult.sin_web} sin web ·{' '}
+                    <strong>{genResult.guardados} guardados</strong> (con teléfono válido)
+                  </div>
+                  <div className="text-gray-500 text-xs">
+                    Ya aparece abajo en "Sin asignar" para que la asignes a una línea.
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 p-5 border-t border-gray-100">
+              <button
+                onClick={() => setShowGen(false)}
+                className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cerrar
+              </button>
+              <button
+                onClick={handleGenerate}
+                disabled={generating}
+                className="px-4 py-2 text-sm bg-gradient-to-r from-purple-600 to-blue-600 hover:opacity-90 disabled:opacity-60 text-white rounded-lg flex items-center gap-2"
+              >
+                {generating ? <Loader2 size={14} className="animate-spin" /> : <MapPin size={14} />}
+                {generating ? 'Buscando en Google Maps...' : 'Generar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

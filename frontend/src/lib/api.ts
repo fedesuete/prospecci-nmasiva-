@@ -165,6 +165,26 @@ export async function uploadDatabase(formData: FormData) {
   return res.json();
 }
 
+export async function generateDatabase(data: {
+  rubro: string;
+  zona: string;
+  cantidad: number;
+  solo_sin_web: boolean;
+  pais?: string;
+}) {
+  return apiFetch<{
+    database_id: string;
+    name: string;
+    encontrados: number;
+    sin_web: number;
+    con_telefono_valido: number;
+    guardados: number;
+  }>('/databases/generate', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
 export async function assignDatabase(id: string, lineId: string) {
   return apiFetch<any>(`/databases/${id}/assign`, {
     method: 'POST',

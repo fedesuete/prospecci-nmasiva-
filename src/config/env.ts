@@ -33,6 +33,9 @@ const envSchema = z.object({
   API_KEY: z.string().default('dev-key-cambiar-en-produccion'),
   JWT_SECRET: z.string().default('prospeccion-jwt-secret-cambiar'),
 
+  // Google Places API (generador de bases de datos)
+  GOOGLE_PLACES_API_KEY: z.string().default(''),
+
   // Audio
   AUDIO_STORAGE_PATH: z.string().default('./storage/audios'),
 });

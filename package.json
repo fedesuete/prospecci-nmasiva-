@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "worker": "tsx src/jobs/worker.ts",
+    "generate-leads": "tsx src/jobs/generate-leads.ts",
     "migrate": "tsx src/db/migrate.ts"
   },
   "dependencies": {
