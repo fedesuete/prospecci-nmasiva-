@@ -23,19 +23,24 @@ export async function databasesRoutes(app: FastifyInstance) {
       zona?: string;
       cantidad?: number;
       solo_sin_web?: boolean;
+      todos_los_rubros?: boolean;
       pais?: string;
     };
 
-    if (!body.rubro?.trim() || !body.zona?.trim()) {
-      return reply.status(400).send({ error: 'Rubro y zona son requeridos' });
+    if (!body.zona?.trim()) {
+      return reply.status(400).send({ error: 'La zona es requerida' });
+    }
+    if (!body.todos_los_rubros && !body.rubro?.trim()) {
+      return reply.status(400).send({ error: 'Indicá un rubro o marcá "todos los comercios"' });
     }
 
     try {
       const result = await generateDatabase({
-        rubro: body.rubro.trim(),
+        rubro: (body.rubro ?? '').trim(),
         zona: body.zona.trim(),
         cantidad: Math.min(Math.max(body.cantidad ?? 50, 1), 300),
         soloSinWeb: !!body.solo_sin_web,
+        todosLosRubros: !!body.todos_los_rubros,
         regionCode: body.pais || 'PY',
       });
       return reply.send(result);

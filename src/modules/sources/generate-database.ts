@@ -1,14 +1,16 @@
 import { searchBusinesses } from './google-places.js';
 import { expandLocalities } from './localities.js';
+import { RUBROS } from './recommendations.js';
 import { normalizePhone } from '../../utils/phone.js';
 import { queryOne } from '../../config/database.js';
 
 export interface GenerateOptions {
   rubro: string;
   zona: string;
-  cantidad: number;     // OBJETIVO de leads con teléfono válido
+  cantidad: number;        // OBJETIVO de leads con teléfono válido
   soloSinWeb: boolean;
-  regionCode?: string;  // 'PY' (default) | 'AR' | ...
+  todosLosRubros?: boolean; // barrer todos los rubros de la zona
+  regionCode?: string;      // 'PY' (default) | 'AR' | ...
 }
 
 export interface GenerateResult {
@@ -30,38 +32,56 @@ function csvCell(value: string): string {
   return value;
 }
 
-// Tope duro de zonas a recorrer por corrida (evita gastos/tiempos excesivos)
-const MAX_ZONAS = 30;
+// Tope duro de búsquedas por corrida (evita gastos/tiempos excesivos)
+const MAX_SEARCHES = 30;
 
-// Busca negocios en Google Maps recorriendo varias localidades hasta juntar
-// `cantidad` leads con teléfono válido, y crea una entrada en lead_databases.
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Busca negocios en Google Maps hasta juntar `cantidad` leads con teléfono válido,
+// y crea una entrada en lead_databases.
+//  - modo rubro único: recorre barrios de la zona buscando ese rubro.
+//  - modo "todos los comercios": barre muchos rubros sobre la zona.
 export async function generateDatabase(opts: GenerateOptions): Promise<GenerateResult> {
-  const localities = expandLocalities(opts.zona).slice(0, MAX_ZONAS);
+  // Definir el plan de búsquedas (pares rubro + zona)
+  const plan: Array<{ rubro: string; loc: string }> = [];
+  if (opts.todosLosRubros) {
+    // Barrer muchos rubros sobre la zona tal cual (sin expandir a barrios, para acotar costo)
+    for (const r of shuffle(RUBROS)) plan.push({ rubro: r, loc: opts.zona });
+  } else {
+    // Un rubro, recorriendo los barrios de la zona
+    for (const loc of expandLocalities(opts.zona)) plan.push({ rubro: opts.rubro, loc });
+  }
 
   const seen = new Set<string>();       // dedup por teléfono (global)
   const lines: string[] = ['nombre,telefono,rubro,ciudad'];
   let encontrados = 0;
   let sinWeb = 0;
   let validPhones = 0;
-  let zonasBuscadas = 0;
+  let busquedas = 0;
 
-  for (const loc of localities) {
-    if (validPhones >= opts.cantidad) break;
+  for (const step of plan) {
+    if (validPhones >= opts.cantidad || busquedas >= MAX_SEARCHES) break;
 
     let businesses;
     try {
       businesses = await searchBusinesses({
-        query: `${opts.rubro} en ${loc}`,
+        query: `${step.rubro} en ${step.loc}`,
         max: 60, // Google devuelve hasta ~60 por búsqueda
         regionCode: opts.regionCode ?? 'PY',
       });
     } catch (err) {
-      // No cortar todo el lote si una zona falla
-      console.error(`[generate] Error en "${loc}": ${(err as Error).message}`);
+      console.error(`[generate] Error en "${step.rubro} en ${step.loc}": ${(err as Error).message}`);
       continue;
     }
 
-    zonasBuscadas++;
+    busquedas++;
     encontrados += businesses.length;
 
     for (const b of businesses) {
@@ -73,7 +93,7 @@ export async function generateDatabase(opts: GenerateOptions): Promise<GenerateR
       if (!phone || seen.has(phone)) continue;
       seen.add(phone);
       validPhones++;
-      lines.push([csvCell(b.name), phone, csvCell(opts.rubro), csvCell(opts.zona)].join(','));
+      lines.push([csvCell(b.name), phone, csvCell(step.rubro), csvCell(opts.zona)].join(','));
 
       if (validPhones >= opts.cantidad) break;
     }
@@ -81,14 +101,15 @@ export async function generateDatabase(opts: GenerateOptions): Promise<GenerateR
 
   const csv = lines.join('\n');
   const totalRows = lines.length - 1;
-  const name = `${opts.rubro} - ${opts.zona}${opts.soloSinWeb ? ' (sin web)' : ''}`;
+  const rubroLabel = opts.todosLosRubros ? 'Todos los comercios' : opts.rubro;
+  const name = `${rubroLabel} - ${opts.zona}${opts.soloSinWeb ? ' (sin web)' : ''}`;
 
   const db = await queryOne<{ id: string }>(
     `INSERT INTO lead_databases
        (name, file_name, file_data, total_rows, valid_phones, default_rubro, default_city, temperature)
      VALUES ($1, $2, $3, $4, $5, $6, $7, 'cold')
      RETURNING id`,
-    [name, `${name}.csv`, Buffer.from(csv, 'utf-8'), totalRows, validPhones, opts.rubro, opts.zona]
+    [name, `${name}.csv`, Buffer.from(csv, 'utf-8'), totalRows, validPhones, opts.todosLosRubros ? null : opts.rubro, opts.zona]
   );
 
   if (!db) throw new Error('No se pudo guardar la base de datos generada');
@@ -100,7 +121,7 @@ export async function generateDatabase(opts: GenerateOptions): Promise<GenerateR
     sin_web: sinWeb,
     con_telefono_valido: validPhones,
     guardados: totalRows,
-    zonas_buscadas: zonasBuscadas,
+    zonas_buscadas: busquedas,
     objetivo: opts.cantidad,
     alcanzo_objetivo: validPhones >= opts.cantidad,
   };

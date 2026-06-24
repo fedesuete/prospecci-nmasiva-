@@ -176,6 +176,7 @@ export async function generateDatabase(data: {
   zona: string;
   cantidad: number;
   solo_sin_web: boolean;
+  todos_los_rubros?: boolean;
   pais?: string;
 }) {
   return apiFetch<{

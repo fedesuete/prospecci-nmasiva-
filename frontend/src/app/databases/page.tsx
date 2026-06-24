@@ -37,6 +37,7 @@ export default function DatabasesPage() {
   const [genCantidad, setGenCantidad] = useState(50);
   const [genPais, setGenPais] = useState('PY');
   const [genSoloSinWeb, setGenSoloSinWeb] = useState(true);
+  const [genTodos, setGenTodos] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [genResult, setGenResult] = useState<any>(null);
   const [genError, setGenError] = useState('');
@@ -68,8 +69,12 @@ export default function DatabasesPage() {
 
   const handleGenerate = async () => {
     setGenError('');
-    if (!genRubro.trim() || !genZona.trim()) {
-      setGenError('Completá el rubro y la zona');
+    if (!genZona.trim()) {
+      setGenError('Completá la zona');
+      return;
+    }
+    if (!genTodos && !genRubro.trim()) {
+      setGenError('Escribí un rubro o marcá "Todos los comercios"');
       return;
     }
     setGenerating(true);
@@ -80,6 +85,7 @@ export default function DatabasesPage() {
         zona: genZona.trim(),
         cantidad: genCantidad,
         solo_sin_web: genSoloSinWeb,
+        todos_los_rubros: genTodos,
         pais: genPais,
       });
       setGenResult(result);
@@ -400,13 +406,25 @@ export default function DatabasesPage() {
                 )}
               </div>
 
+              <label className="flex items-center gap-2 text-sm text-gray-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={genTodos}
+                  onChange={(e) => setGenTodos(e.target.checked)}
+                />
+                <span><strong>Todos los comercios</strong> de la zona (barre todos los rubros)</span>
+              </label>
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Rubro</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Rubro {genTodos && <span className="text-gray-400 font-normal">(ignorado: estás trayendo todos)</span>}
+                </label>
                 <input
                   value={genRubro}
                   onChange={(e) => setGenRubro(e.target.value)}
+                  disabled={genTodos}
                   placeholder="ej: peluquerías, restaurantes, gimnasios"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-400"
                 />
               </div>
 

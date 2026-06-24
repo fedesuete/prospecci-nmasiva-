@@ -1,7 +1,7 @@
 import { query } from '../../config/database.js';
 
 // Rubros B2B locales que suelen NO tener web (buenos prospectos para ofrecerles una)
-const RUBROS = [
+export const RUBROS = [
   'peluquerías', 'barberías', 'gimnasios', 'centros de estética', 'spa', 'estudios de tatuajes',
   'estudios de uñas', 'depilación', 'ferreterías', 'veterinarias', 'pet shops', 'talleres mecánicos',
   'lavaderos de autos', 'gomerías', 'cerrajerías', 'pinturerías', 'vidrierías', 'carpinterías',
