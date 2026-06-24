@@ -81,12 +81,16 @@ export default function WhatsAppPage() {
     try {
       const result = await getWhatsAppLineStatus(instanceName);
       const state = result.state || result.instance?.state || 'unknown';
+      await loadData();
       if (state === 'open') {
-        alert('Conectada correctamente');
+        alert('✅ Conectada correctamente');
+      } else if (state === 'close') {
+        alert('❌ Desconectada. Usá el botón "Conectar (QR)" / "Reconectar (QR)" para volver a vincularla.');
+      } else if (state === 'connecting') {
+        alert('⏳ Conectando... esperá unos segundos y volvé a tocar "Estado".');
       } else {
         alert(`Estado: ${state}`);
       }
-      await loadData();
     } catch (err) {
       alert((err as Error).message);
     } finally {

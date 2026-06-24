@@ -325,30 +325,38 @@ export async function webhooksRoutes(app: FastifyInstance) {
     const { instanceName } = request.params as { instanceName: string };
     try {
       const result = await evolutionFetch(`/instance/connectionState/${instanceName}`);
+      const state = result.state || result.instance?.state || 'unknown';
 
-      // Si está conectada, actualizar info en nuestra DB
-      if (result.state === 'open' || result.instance?.state === 'open') {
-        // Obtener info de la instancia
+      // Sincronizar nuestra DB con el estado real de Evolution (en ambos sentidos)
+      if (state === 'open') {
         const instances = await evolutionFetch('/instance/fetchInstances');
         const instance = Array.isArray(instances)
           ? instances.find((i: any) => i.name === instanceName)
           : null;
-
-        if (instance) {
-          await query(
-            `UPDATE whatsapp_lines SET
-              phone_number = COALESCE(NULLIF($1, ''), phone_number),
-              status = 'active'
-             WHERE instance_name = $2`,
-            [
-              instance.ownerJid?.split('@')[0] ?? '',
-              instanceName,
-            ]
-          );
-        }
+        await query(
+          `UPDATE whatsapp_lines SET
+            phone_number = COALESCE(NULLIF($1, ''), phone_number),
+            status = 'active'
+           WHERE instance_name = $2`,
+          [instance?.ownerJid?.split('@')[0] ?? '', instanceName]
+        );
+      } else if (state === 'close') {
+        // Línea caída: detectar si fue baneada (401) o solo desconectada
+        const instances = await evolutionFetch('/instance/fetchInstances');
+        const instance = Array.isArray(instances)
+          ? instances.find((i: any) => i.name === instanceName)
+          : null;
+        const newStatus = instance?.disconnectionReasonCode === 401 ? 'banned' : 'paused';
+        // No degradar una línea ya marcada como baneada
+        await query(
+          `UPDATE whatsapp_lines SET status = CASE WHEN status = 'banned' THEN 'banned' ELSE $1 END
+           WHERE instance_name = $2`,
+          [newStatus, instanceName]
+        );
       }
+      // 'connecting' / 'unknown': estado transitorio, no tocar
 
-      return reply.send(result);
+      return reply.send({ ...result, state });
     } catch (err) {
       return reply.status(500).send({ error: (err as Error).message });
     }
