@@ -22,6 +22,28 @@ async function evolutionFetch(path: string, options: RequestInit = {}) {
   try { return JSON.parse(text); } catch { return text; }
 }
 
+// Descarga un media entrante (audio/imagen) desde Evolution y lo guarda en disco.
+// Devuelve true si lo guardó.
+async function saveInboundMedia(instance: string, key: any, id: string, ext: string): Promise<boolean> {
+  try {
+    const result = await evolutionFetch(`/chat/getBase64FromMediaMessage/${instance}`, {
+      method: 'POST',
+      body: JSON.stringify({ message: { key }, convertToMp4: false }),
+    });
+    const b64 = (result as any)?.base64;
+    if (!b64 || typeof b64 !== 'string') return false;
+    const fs = await import('fs');
+    const path = await import('path');
+    const dir = path.join(env.AUDIO_STORAGE_PATH, 'inbound');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, `${id}.${ext}`), Buffer.from(b64, 'base64'));
+    return true;
+  } catch (err) {
+    console.error('[webhook] media error:', (err as Error).message);
+    return false;
+  }
+}
+
 export async function webhooksRoutes(app: FastifyInstance) {
   // ============================================
   // Facebook Lead Ads
@@ -121,11 +143,26 @@ export async function webhooksRoutes(app: FastifyInstance) {
       }
 
       const message = data.message || {};
-      const content =
-        message.conversation ??
-        message.extendedTextMessage?.text ??
-        message.imageMessage?.caption ??
-        `[${data.messageType || body.messageType || 'media'}]`;
+      const mediaId: string = body.data?.key?.id || data.key?.id || '';
+
+      // Detectar tipo de mensaje y, si es audio/imagen, descargar el media
+      let contentType: 'text' | 'audio' | 'image' = 'text';
+      let content: string;
+      if ((message.audioMessage || message.pttMessage) && mediaId) {
+        contentType = 'audio';
+        const ok = await saveInboundMedia(instance, data.key, mediaId, 'ogg');
+        content = ok ? `/api/media/inbound/${mediaId}.ogg` : '[audio]';
+      } else if (message.imageMessage && mediaId) {
+        contentType = 'image';
+        const ok = await saveInboundMedia(instance, data.key, mediaId, 'jpg');
+        content = ok ? `/api/media/inbound/${mediaId}.jpg` : (message.imageMessage.caption || '[imagen]');
+      } else {
+        content =
+          message.conversation ??
+          message.extendedTextMessage?.text ??
+          message.imageMessage?.caption ??
+          `[${data.messageType || body.messageType || 'media'}]`;
+      }
 
       // Buscar linea por instance_name
       const line = await queryOne<{ id: string }>(
@@ -138,9 +175,9 @@ export async function webhooksRoutes(app: FastifyInstance) {
         channel_id: 'whatsapp',
         whatsapp_line_id: line?.id,
         direction: 'inbound',
-        content_type: 'text',
+        content_type: contentType,
         content,
-        external_id: body.data.key.id,
+        external_id: mediaId,
         status: 'received',
       });
 
@@ -158,6 +195,31 @@ export async function webhooksRoutes(app: FastifyInstance) {
       console.error('[webhook] Error Evolution:', err);
       return reply.status(500).send({ error: (err as Error).message });
     }
+  });
+
+  // ============================================
+  // Servir media entrante (audios/imágenes de clientes) — pública (sin auth)
+  // ============================================
+  app.get('/api/media/inbound/:file', async (request, reply) => {
+    const { file } = request.params as { file: string };
+    if (!/^[A-Za-z0-9._-]+$/.test(file)) return reply.status(400).send({ error: 'nombre inválido' });
+
+    const fs = await import('fs');
+    const path = await import('path');
+    const fp = path.join(env.AUDIO_STORAGE_PATH, 'inbound', file);
+    if (!fs.existsSync(fp)) return reply.status(404).send({ error: 'no encontrado' });
+
+    const ext = file.split('.').pop()?.toLowerCase();
+    const mime =
+      ext === 'ogg' ? 'audio/ogg'
+      : ext === 'mp3' ? 'audio/mpeg'
+      : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg'
+      : ext === 'png' ? 'image/png'
+      : 'application/octet-stream';
+
+    reply.header('Content-Type', mime);
+    reply.header('Cache-Control', 'public, max-age=86400');
+    return reply.send(fs.createReadStream(fp));
   });
 
   // ============================================

@@ -1,4 +1,4 @@
-import { searchBusinesses } from './google-places.js';
+import { searchBusinesses, geocodeZone } from './google-places.js';
 import { expandLocalities } from './localities.js';
 import { RUBROS } from './recommendations.js';
 import { filterWithWhatsApp } from './whatsapp-check.js';
@@ -12,7 +12,27 @@ export interface GenerateOptions {
   soloSinWeb: boolean;
   todosLosRubros?: boolean; // barrer todos los rubros de la zona
   soloConWhatsApp?: boolean; // verificar y dejar solo números con WhatsApp (default true)
+  radioKm?: number;         // si se da, barre un radio en km alrededor de la zona (grilla)
   regionCode?: string;      // 'PY' (default) | 'AR' | ...
+}
+
+// Grilla de puntos (circular) alrededor de un centro para barrer un radio.
+function generateGrid(
+  center: { lat: number; lng: number },
+  radioKm: number,
+  cellKm: number
+): Array<{ lat: number; lng: number }> {
+  const points: Array<{ lat: number; lng: number }> = [];
+  const latStep = cellKm / 111;
+  const lngStep = cellKm / (111 * Math.cos((center.lat * Math.PI) / 180));
+  const steps = Math.max(1, Math.floor(radioKm / cellKm));
+  for (let i = -steps; i <= steps; i++) {
+    for (let j = -steps; j <= steps; j++) {
+      if (Math.sqrt((i * cellKm) ** 2 + (j * cellKm) ** 2) > radioKm) continue;
+      points.push({ lat: center.lat + i * latStep, lng: center.lng + j * lngStep });
+    }
+  }
+  return points;
 }
 
 export interface GenerateResult {
@@ -51,9 +71,21 @@ function shuffle<T>(arr: T[]): T[] {
 //  - modo rubro único: recorre barrios de la zona buscando ese rubro.
 //  - modo "todos los comercios": barre muchos rubros sobre la zona.
 export async function generateDatabase(opts: GenerateOptions): Promise<GenerateResult> {
-  // Definir el plan de búsquedas (pares rubro + zona)
-  const plan: Array<{ rubro: string; loc: string }> = [];
-  if (opts.todosLosRubros) {
+  // Definir el plan de búsquedas
+  type Step = { rubro: string; loc: string; center?: { lat: number; lng: number }; radiusM?: number };
+  const plan: Step[] = [];
+  const cellKm = 2.5;
+
+  if (opts.radioKm && opts.radioKm > 0) {
+    // Modo RADIO: geocodificar la zona y barrer una grilla de puntos en ese radio
+    const center = await geocodeZone(opts.zona, opts.regionCode ?? 'PY');
+    if (!center) throw new Error(`No pude ubicar "${opts.zona}" en el mapa. Probá con otra forma de escribirla.`);
+    const grid = generateGrid(center, opts.radioKm, cellKm).slice(0, MAX_SEARCHES);
+    const rubros = opts.todosLosRubros ? shuffle(RUBROS).slice(0, 4) : [opts.rubro];
+    for (const p of grid) {
+      for (const r of rubros) plan.push({ rubro: r, loc: opts.zona, center: p, radiusM: cellKm * 1300 });
+    }
+  } else if (opts.todosLosRubros) {
     // Barrer muchos rubros sobre la zona tal cual (sin expandir a barrios, para acotar costo)
     for (const r of shuffle(RUBROS)) plan.push({ rubro: r, loc: opts.zona });
   } else {
@@ -71,15 +103,20 @@ export async function generateDatabase(opts: GenerateOptions): Promise<GenerateR
   for (const step of plan) {
     if (validPhones >= opts.cantidad || busquedas >= MAX_SEARCHES) break;
 
+    // Con center, la geografía la da el sesgo de ubicación → la query es solo el rubro
+    const query = step.center ? step.rubro : `${step.rubro} en ${step.loc}`;
+
     let businesses;
     try {
       businesses = await searchBusinesses({
-        query: `${step.rubro} en ${step.loc}`,
+        query,
         max: 60, // Google devuelve hasta ~60 por búsqueda
         regionCode: opts.regionCode ?? 'PY',
+        center: step.center,
+        radiusM: step.radiusM,
       });
     } catch (err) {
-      console.error(`[generate] Error en "${step.rubro} en ${step.loc}": ${(err as Error).message}`);
+      console.error(`[generate] Error en "${query}": ${(err as Error).message}`);
       continue;
     }
 

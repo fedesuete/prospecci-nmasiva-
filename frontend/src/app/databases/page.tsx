@@ -38,6 +38,7 @@ export default function DatabasesPage() {
   const [genPais, setGenPais] = useState('PY');
   const [genSoloSinWeb, setGenSoloSinWeb] = useState(true);
   const [genTodos, setGenTodos] = useState(false);
+  const [genRadio, setGenRadio] = useState(0);
   const [generating, setGenerating] = useState(false);
   const [genResult, setGenResult] = useState<any>(null);
   const [genError, setGenError] = useState('');
@@ -86,6 +87,7 @@ export default function DatabasesPage() {
         cantidad: genCantidad,
         solo_sin_web: genSoloSinWeb,
         todos_los_rubros: genTodos,
+        radio_km: genRadio > 0 ? genRadio : undefined,
         pais: genPais,
       });
       setGenResult(result);
@@ -468,6 +470,24 @@ export default function DatabasesPage() {
                     <option value="BR">Brasil</option>
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Radio de búsqueda</label>
+                <select
+                  value={genRadio}
+                  onChange={(e) => setGenRadio(parseInt(e.target.value))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                >
+                  <option value={0}>Automático (barrios)</option>
+                  <option value={3}>3 km a la redonda</option>
+                  <option value={5}>5 km a la redonda</option>
+                  <option value={10}>10 km a la redonda</option>
+                  <option value={20}>20 km a la redonda</option>
+                </select>
+                <p className="text-xs text-gray-400 mt-1">
+                  Con radio, ubica la zona en el mapa y barre todos los locales en ese radio (recomendado para traer muchos más).
+                </p>
               </div>
 
               <label className="flex items-center gap-2 text-sm text-gray-700 bg-purple-50 border border-purple-100 rounded-lg px-3 py-2 cursor-pointer">

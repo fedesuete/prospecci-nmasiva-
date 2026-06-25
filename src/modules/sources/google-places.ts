@@ -32,6 +32,29 @@ export interface SearchOptions {
   max: number;            // cantidad de resultados deseada
   regionCode?: string;    // ej: 'PY', 'AR'
   languageCode?: string;
+  center?: { lat: number; lng: number }; // opcional: sesgar a un punto
+  radiusM?: number;       // radio en metros del sesgo (con center)
+}
+
+// Geocodifica una zona (ciudad/barrio) a coordenadas usando Places Text Search.
+export async function geocodeZone(
+  zona: string,
+  regionCode = 'PY'
+): Promise<{ lat: number; lng: number } | null> {
+  if (!env.GOOGLE_PLACES_API_KEY) throw new Error('Falta GOOGLE_PLACES_API_KEY');
+  const res = await fetch(ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': env.GOOGLE_PLACES_API_KEY,
+      'X-Goog-FieldMask': 'places.location',
+    },
+    body: JSON.stringify({ textQuery: zona, languageCode: 'es', regionCode, maxResultCount: 1 }),
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as { places?: Array<{ location?: { latitude: number; longitude: number } }> };
+  const loc = data.places?.[0]?.location;
+  return loc ? { lat: loc.latitude, lng: loc.longitude } : null;
 }
 
 // Busca negocios en Google Maps por texto, paginando hasta juntar `max`.
@@ -50,6 +73,15 @@ export async function searchBusinesses(opts: SearchOptions): Promise<PlaceBusine
       regionCode: opts.regionCode ?? 'PY',
       maxResultCount: Math.min(20, opts.max - results.length),
     };
+    // Sesgar la búsqueda a un punto + radio (para barrer una zona por grilla)
+    if (opts.center && opts.radiusM) {
+      body.locationBias = {
+        circle: {
+          center: { latitude: opts.center.lat, longitude: opts.center.lng },
+          radius: opts.radiusM,
+        },
+      };
+    }
     if (pageToken) body.pageToken = pageToken;
 
     const res = await fetch(ENDPOINT, {

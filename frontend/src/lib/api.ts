@@ -13,13 +13,16 @@ function handleUnauthorized() {
 }
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const headers: Record<string, string> = {
+    ...authHeaders(),
+    ...(options.headers as Record<string, string>),
+  };
+  // Solo poner Content-Type json si hay body (sino Fastify rechaza POST vacíos)
+  if (options.body) headers['Content-Type'] = 'application/json';
+
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeaders(),
-      ...options.headers,
-    },
+    headers,
   });
 
   if (res.status === 401) {
@@ -177,6 +180,7 @@ export async function generateDatabase(data: {
   cantidad: number;
   solo_sin_web: boolean;
   todos_los_rubros?: boolean;
+  radio_km?: number;
   pais?: string;
 }) {
   return apiFetch<{

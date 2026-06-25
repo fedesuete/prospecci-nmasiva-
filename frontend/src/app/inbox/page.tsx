@@ -194,7 +194,9 @@ export default function InboxPage() {
                     <div className="flex items-center justify-between gap-2 mt-0.5">
                       <span className={`text-xs truncate ${unread ? 'text-gray-900 font-medium' : 'text-gray-500'}`}>
                         {c.direction === 'outbound' ? 'Vos: ' : ''}
-                        {c.content ?? '[Media]'}
+                        {c.content_type === 'audio' ? '🎤 Audio'
+                          : c.content_type === 'image' ? '📷 Imagen'
+                          : (c.content ?? '[Media]')}
                       </span>
                       {unread && (
                         <span className="bg-green-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 flex-shrink-0">
@@ -255,7 +257,15 @@ export default function InboxPage() {
                             : 'bg-white text-gray-900 border border-gray-100 rounded-bl-sm'
                         }`}
                       >
-                        <p className="whitespace-pre-wrap break-words">{m.content ?? '[Media]'}</p>
+                        {m.content_type === 'audio' && typeof m.content === 'string' && m.content.startsWith('/api/media/') ? (
+                          <audio controls src={m.content} className="max-w-[230px] h-9" />
+                        ) : m.content_type === 'image' && typeof m.content === 'string' && m.content.startsWith('/api/media/') ? (
+                          <img src={m.content} alt="imagen" className="max-w-[230px] rounded-lg" />
+                        ) : m.content_type === 'audio' ? (
+                          <p className="italic opacity-80">🎤 Audio</p>
+                        ) : (
+                          <p className="whitespace-pre-wrap break-words">{m.content ?? '[Media]'}</p>
+                        )}
                         <p className={`text-[10px] mt-1 text-right ${out ? 'text-green-50' : 'text-gray-400'}`}>
                           {formatTime(m.created_at)}
                         </p>

@@ -24,6 +24,7 @@ export async function databasesRoutes(app: FastifyInstance) {
       cantidad?: number;
       solo_sin_web?: boolean;
       todos_los_rubros?: boolean;
+      radio_km?: number;
       pais?: string;
     };
 
@@ -41,6 +42,7 @@ export async function databasesRoutes(app: FastifyInstance) {
         cantidad: Math.min(Math.max(body.cantidad ?? 50, 1), 300),
         soloSinWeb: !!body.solo_sin_web,
         todosLosRubros: !!body.todos_los_rubros,
+        radioKm: body.radio_km && body.radio_km > 0 ? Math.min(body.radio_km, 25) : undefined,
         regionCode: body.pais || 'PY',
       });
       return reply.send(result);

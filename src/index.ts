@@ -26,9 +26,10 @@ async function start() {
 
   // Auth middleware (excepto webhooks que tienen su propia verificación)
   app.addHook('onRequest', async (request, reply) => {
-    // No autenticar webhooks, health check ni login
+    // No autenticar webhooks, media pública, health check ni login
     if (
       request.url.startsWith('/api/webhooks/') ||
+      request.url.startsWith('/api/media/') ||
       request.url === '/health' ||
       request.url === '/api/auth/login'
     ) {
