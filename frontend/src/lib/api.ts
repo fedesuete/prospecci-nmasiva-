@@ -257,6 +257,12 @@ export async function fetchLeadMessages(leadId: string) {
 // ============================================
 // Inbox tipo chat (conversaciones + hilo + responder)
 // ============================================
+export async function fetchLinesSummary() {
+  return apiFetch<Array<{ line_id: string; line_name: string; sin_responder: string; total: string }>>(
+    '/inbox/lines-summary'
+  );
+}
+
 export async function fetchThread(leadId: string) {
   return apiFetch<{ lead: any; line_id: string | null; messages: any[] }>(`/inbox/thread/${leadId}`);
 }

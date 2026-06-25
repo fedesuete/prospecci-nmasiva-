@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { getUnifiedInbox } from '../modules/inbox/unified.js';
-import { listConversations, getThread, resolveReplyLine, type LineScope } from '../modules/inbox/conversations.js';
+import { listConversations, getThread, resolveReplyLine, getLineSummary, type LineScope } from '../modules/inbox/conversations.js';
 import { getUserLineIds } from '../db/queries/users.js';
 import { insertMessage, updateMessageStatus } from '../db/queries/messages.js';
 import { env } from '../config/env.js';
@@ -32,8 +32,15 @@ export async function inboxRoutes(app: FastifyInstance) {
     const q = request.query as Record<string, string>;
     const scope = await resolveScope(request.auth!);
     const limit = q.limit ? parseInt(q.limit) : 100;
-    const conversations = await listConversations(scope, limit);
+    const conversations = await listConversations(scope, limit, q.line_id || undefined);
     return reply.send(conversations);
+  });
+
+  // Resumen por línea: cuántas conversaciones sin responder tiene cada una
+  app.get('/api/inbox/lines-summary', async (request, reply) => {
+    const scope = await resolveScope(request.auth!);
+    const summary = await getLineSummary(scope);
+    return reply.send(summary);
   });
 
   // Hilo completo de una conversación — scopeado + marca leídos

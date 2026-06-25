@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Sidebar } from '@/components/sidebar';
-import { fetchConversations, fetchThread, sendReply } from '@/lib/api';
+import { fetchConversations, fetchThread, sendReply, fetchLinesSummary } from '@/lib/api';
 import { Inbox, Search, Send, Loader2, Phone } from 'lucide-react';
 
 function formatTime(dateStr: string) {
@@ -24,11 +24,16 @@ export default function InboxPage() {
   const [search, setSearch] = useState('');
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
+  const [lineSummary, setLineSummary] = useState<any[]>([]);
+  const [lineFilter, setLineFilter] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const loadConversations = useCallback(() => {
-    fetchConversations({ limit: '100' }).then(setConversations).catch(() => {});
-  }, []);
+    const params: Record<string, string> = { limit: '100' };
+    if (lineFilter) params.line_id = lineFilter;
+    fetchConversations(params).then(setConversations).catch(() => {});
+    fetchLinesSummary().then(setLineSummary).catch(() => {});
+  }, [lineFilter]);
 
   const loadThread = useCallback((leadId: string) => {
     setLoadingThread(true);
@@ -95,9 +100,53 @@ export default function InboxPage() {
     return name.includes(q) || (c.phone ?? '').includes(q);
   });
 
+  const totalSinResponder = lineSummary.reduce((acc, l) => acc + parseInt(l.sin_responder ?? '0'), 0);
+
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
+
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Barra horizontal de líneas con globito de "sin responder" */}
+        <div className="border-b border-gray-200 bg-white px-3 py-2 flex gap-2 overflow-x-auto items-center flex-shrink-0">
+          <button
+            onClick={() => setLineFilter(null)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm whitespace-nowrap border transition-colors ${
+              lineFilter === null ? 'bg-blue-50 border-blue-300 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            Todas
+            {totalSinResponder > 0 && (
+              <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                {totalSinResponder}
+              </span>
+            )}
+          </button>
+          {lineSummary.map((l) => {
+            const sin = parseInt(l.sin_responder ?? '0');
+            const active = lineFilter === l.line_id;
+            return (
+              <button
+                key={l.line_id}
+                onClick={() => setLineFilter(l.line_id)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm whitespace-nowrap border transition-colors ${
+                  active ? 'bg-blue-50 border-blue-300 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
+                title={`${l.total} conversaciones · ${sin} sin responder`}
+              >
+                <Phone size={13} className="text-gray-400" />
+                {l.line_name}
+                {sin > 0 && (
+                  <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                    {sin}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex flex-1 overflow-hidden">
 
       {/* Lista de conversaciones */}
       <div className="w-80 border-r border-gray-200 flex flex-col bg-white">
@@ -243,6 +292,9 @@ export default function InboxPage() {
             </div>
           </>
         )}
+      </div>
+
+        </div>
       </div>
     </div>
   );

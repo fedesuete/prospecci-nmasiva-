@@ -22,14 +22,21 @@ export interface ConversationSummary {
   unread: string; // count viene como string desde pg
 }
 
-// Lista de conversaciones (una por lead) con el último mensaje, ordenadas por actividad
-export async function listConversations(scope: LineScope, limit = 100): Promise<ConversationSummary[]> {
-  if (scope !== null && scope.length === 0) return [];
+// Lista de conversaciones (una por lead) con el último mensaje, ordenadas por actividad.
+// lineId opcional: filtra a una sola línea (debe estar dentro del alcance del usuario).
+export async function listConversations(scope: LineScope, limit = 100, lineId?: string): Promise<ConversationSummary[]> {
+  // Resolver alcance efectivo (una línea puntual o el alcance completo)
+  let effective: LineScope = scope;
+  if (lineId) {
+    if (scope !== null && !scope.includes(lineId)) return [];
+    effective = [lineId];
+  }
+  if (effective !== null && effective.length === 0) return [];
 
   const params: any[] = [];
   let lineFilter = '';
-  if (scope !== null) {
-    params.push(scope);
+  if (effective !== null) {
+    params.push(effective);
     lineFilter = `AND m.whatsapp_line_id = ANY($${params.length})`;
   }
   params.push(limit);
@@ -140,5 +147,48 @@ export async function resolveReplyLine(leadId: string, scope: LineScope) {
   return queryOne<{ id: string; instance_name: string; api_url: string; api_key: string }>(
     'SELECT id, instance_name, api_url, api_key FROM whatsapp_lines WHERE id = $1',
     [lineId]
+  );
+}
+
+export interface LineSummary {
+  line_id: string;
+  line_name: string;
+  sin_responder: string; // conversaciones cuyo último mensaje es del cliente (count viene como string)
+  total: string;
+}
+
+// Resumen por línea: cuántas conversaciones están SIN RESPONDER (último mensaje entrante).
+// Respeta el alcance del usuario (admin: todas; agente: solo sus líneas).
+export async function getLineSummary(scope: LineScope): Promise<LineSummary[]> {
+  if (scope !== null && scope.length === 0) return [];
+
+  const params: any[] = [];
+  let where = '';
+  if (scope !== null) {
+    params.push(scope);
+    where = `WHERE wl.id = ANY($${params.length})`;
+  }
+
+  return query<LineSummary>(
+    `SELECT wl.id AS line_id, wl.display_name AS line_name,
+            COALESCE(s.sin_responder, 0) AS sin_responder,
+            COALESCE(s.total, 0) AS total
+     FROM whatsapp_lines wl
+     LEFT JOIN (
+       SELECT lm.whatsapp_line_id AS line_id,
+              count(*) FILTER (WHERE lm.direction = 'inbound') AS sin_responder,
+              count(*) AS total
+       FROM (
+         SELECT DISTINCT ON (m.lead_id) m.lead_id, m.direction, m.whatsapp_line_id
+         FROM messages m
+         WHERE m.channel_id = 'whatsapp'
+         ORDER BY m.lead_id, m.created_at DESC
+       ) lm
+       WHERE lm.whatsapp_line_id IS NOT NULL
+       GROUP BY lm.whatsapp_line_id
+     ) s ON s.line_id = wl.id
+     ${where}
+     ORDER BY wl.display_name ASC`,
+    params
   );
 }
