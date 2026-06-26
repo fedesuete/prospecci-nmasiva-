@@ -278,6 +278,37 @@ export async function sendReply(leadId: string, message: string) {
   });
 }
 
+export async function sendReplyAudio(leadId: string, audio: Blob) {
+  const form = new FormData();
+  form.append('lead_id', leadId);
+  form.append('file', audio, 'nota.webm');
+  const res = await fetch('/api/inbox/reply-audio', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: form,
+  });
+  if (res.status === 401) { handleUnauthorized(); throw new Error('Sesión expirada'); }
+  return res.json() as Promise<{ success: boolean; error?: string }>;
+}
+
+// Plantillas de respuesta rápida
+export interface QuickReply { id: string; title: string; text: string; created_at: string }
+
+export async function fetchQuickReplies() {
+  return apiFetch<QuickReply[]>('/quick-replies');
+}
+
+export async function createQuickReply(title: string, text: string) {
+  return apiFetch<QuickReply>('/quick-replies', {
+    method: 'POST',
+    body: JSON.stringify({ title, text }),
+  });
+}
+
+export async function deleteQuickReply(id: string) {
+  return apiFetch<{ ok: boolean }>(`/quick-replies/${id}`, { method: 'DELETE' });
+}
+
 // ============================================
 // Usuarios / accesos (solo admin)
 // ============================================

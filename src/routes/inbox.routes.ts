@@ -3,8 +3,10 @@ import { getUnifiedInbox } from '../modules/inbox/unified.js';
 import { listConversations, getThread, resolveReplyLine, getLineSummary, type LineScope } from '../modules/inbox/conversations.js';
 import { getUserLineIds } from '../db/queries/users.js';
 import { insertMessage, updateMessageStatus } from '../db/queries/messages.js';
+import { convertToOgg } from '../modules/channels/whatsapp/convert-audio.js';
 import { env } from '../config/env.js';
 import type { AuthContext } from '../middleware/auth.js';
+import { randomBytes } from 'crypto';
 
 // Resuelve qué líneas puede ver el usuario: null = todas (admin/servicio)
 async function resolveScope(auth: AuthContext): Promise<LineScope> {
@@ -86,6 +88,73 @@ export async function inboxRoutes(app: FastifyInstance) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', apikey: line.api_key || env.EVOLUTION_API_KEY },
         body: JSON.stringify({ number: phone, text: body.message }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        await updateMessageStatus(msg.id, 'failed');
+        return reply.send({ success: false, error: `Evolution API: ${errorText.substring(0, 200)}` });
+      }
+
+      const result = (await response.json()) as { key?: { id?: string } };
+      await updateMessageStatus(msg.id, 'sent', result.key?.id);
+      return reply.send({ success: true, messageId: msg.id });
+    } catch (err) {
+      await updateMessageStatus(msg.id, 'failed');
+      return reply.send({ success: false, error: (err as Error).message });
+    }
+  });
+
+  // Responder con un AUDIO grabado (nota de voz). Multipart: file + lead_id
+  app.post('/api/inbox/reply-audio', async (request, reply) => {
+    const parts = request.parts();
+    let fileBuffer: Buffer | null = null;
+    let leadId = '';
+    for await (const part of parts) {
+      if (part.type === 'file') fileBuffer = await part.toBuffer();
+      else if (part.fieldname === 'lead_id') leadId = part.value as string;
+    }
+    if (!fileBuffer || !leadId) {
+      return reply.status(400).send({ error: 'Falta el audio o el lead_id' });
+    }
+
+    const scope = await resolveScope(request.auth!);
+    const line = await resolveReplyLine(leadId, scope);
+    if (!line) return reply.status(403).send({ error: 'No tenés una línea disponible para responder' });
+
+    const lead = await import('../db/queries/leads.js').then((m) => m.findLeadById(leadId));
+    if (!lead) return reply.status(404).send({ error: 'Lead no encontrado' });
+
+    const fs = await import('fs');
+    const path = await import('path');
+    const id = randomBytes(12).toString('hex');
+    const dir = path.join(env.AUDIO_STORAGE_PATH, 'inbound');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const inputPath = path.join(dir, `${id}.input`);
+    const oggPath = path.join(dir, `${id}.ogg`);
+
+    const msg = await insertMessage({
+      lead_id: lead.id,
+      channel_id: 'whatsapp',
+      whatsapp_line_id: line.id,
+      direction: 'outbound',
+      content_type: 'audio',
+      content: `/api/media/inbound/${id}.ogg`,
+      status: 'queued',
+    });
+
+    try {
+      fs.writeFileSync(inputPath, fileBuffer);
+      await convertToOgg(inputPath, oggPath);
+      fs.unlinkSync(inputPath);
+
+      const audioBase64 = fs.readFileSync(oggPath).toString('base64');
+      const phone = lead.phone.replace('+', '');
+      const baseUrl = (line.api_url || env.EVOLUTION_API_URL).replace(/\/$/, '');
+      const response = await fetch(`${baseUrl}/message/sendWhatsAppAudio/${line.instance_name}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: line.api_key || env.EVOLUTION_API_KEY },
+        body: JSON.stringify({ number: phone, audio: audioBase64 }),
       });
 
       if (!response.ok) {

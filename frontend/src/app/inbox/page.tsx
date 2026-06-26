@@ -2,8 +2,17 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Sidebar } from '@/components/sidebar';
-import { fetchConversations, fetchThread, sendReply, fetchLinesSummary } from '@/lib/api';
-import { Inbox, Search, Send, Loader2, Phone } from 'lucide-react';
+import {
+  fetchConversations, fetchThread, sendReply, fetchLinesSummary,
+  sendReplyAudio, fetchQuickReplies, createQuickReply, deleteQuickReply, type QuickReply,
+} from '@/lib/api';
+import { Inbox, Search, Send, Loader2, Phone, Mic, Smile, FileText, X, Trash2, Square } from 'lucide-react';
+
+const EMOJIS = [
+  '😀','😁','😂','🤣','😊','😍','😘','😎','🤩','🥳','👍','👌','🙏','💪','🔥','✨','🎉','✅','❤️','💯',
+  '🙌','👏','🤝','😉','😅','🤔','😬','🙈','😴','😢','😭','😡','🥺','😱','🤯','💰','💸','📈','📲','📱',
+  '💬','📞','⏰','📅','🚀','⭐','🎁','☕','🍕','🛒',
+];
 
 function formatTime(dateStr: string) {
   return new Date(dateStr).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
@@ -27,6 +36,81 @@ export default function InboxPage() {
   const [lineSummary, setLineSummary] = useState<any[]>([]);
   const [lineFilter, setLineFilter] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Emojis, plantillas y grabación de audio
+  const [showEmojis, setShowEmojis] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [templates, setTemplates] = useState<QuickReply[]>([]);
+  const [recording, setRecording] = useState(false);
+  const [sendingAudio, setSendingAudio] = useState(false);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const cancelRef = useRef(false);
+
+  useEffect(() => {
+    fetchQuickReplies().then(setTemplates).catch(() => {});
+  }, []);
+
+  const insertText = (t: string) => {
+    setReply((prev) => (prev ? prev + (prev.endsWith(' ') ? '' : ' ') + t : t));
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const rec = new MediaRecorder(stream);
+      chunksRef.current = [];
+      cancelRef.current = false;
+      rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      rec.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        if (cancelRef.current) return;
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        if (blob.size < 500 || !selected) return;
+        setSendingAudio(true);
+        try {
+          const res = await sendReplyAudio(selected, blob);
+          if (!res.success) alert(res.error || 'No se pudo enviar el audio');
+          else { loadThread(selected); loadConversations(); }
+        } catch (err) {
+          alert((err as Error).message);
+        } finally {
+          setSendingAudio(false);
+        }
+      };
+      rec.start();
+      recorderRef.current = rec;
+      setRecording(true);
+    } catch {
+      alert('No pude acceder al micrófono. Permití el acceso en el navegador.');
+    }
+  };
+
+  const stopRecording = (cancel: boolean) => {
+    cancelRef.current = cancel;
+    recorderRef.current?.stop();
+    setRecording(false);
+  };
+
+  const addTemplate = async () => {
+    const title = prompt('Nombre de la plantilla:');
+    if (!title) return;
+    const text = prompt('Texto de la plantilla:');
+    if (!text) return;
+    try {
+      await createQuickReply(title, text);
+      setTemplates(await fetchQuickReplies());
+    } catch (err) {
+      alert((err as Error).message);
+    }
+  };
+
+  const removeTemplate = async (id: string) => {
+    try {
+      await deleteQuickReply(id);
+      setTemplates((prev) => prev.filter((t) => t.id !== id));
+    } catch {}
+  };
 
   const loadConversations = useCallback(() => {
     const params: Record<string, string> = { limit: '100' };
@@ -278,27 +362,110 @@ export default function InboxPage() {
             </div>
 
             {/* Caja de respuesta */}
-            <div className="bg-white border-t border-gray-200 p-4 flex items-end gap-2">
-              <textarea
-                value={reply}
-                onChange={(e) => setReply(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSend();
-                  }
-                }}
-                rows={1}
-                placeholder="Escribí un mensaje... (Enter para enviar)"
-                className="flex-1 resize-none border border-gray-300 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 max-h-32"
-              />
-              <button
-                onClick={handleSend}
-                disabled={sending || !reply.trim()}
-                className="bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white rounded-full w-11 h-11 flex items-center justify-center flex-shrink-0 transition-colors"
-              >
-                {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-              </button>
+            <div className="bg-white border-t border-gray-200 p-3 relative">
+              {/* Popover de emojis */}
+              {showEmojis && (
+                <div className="absolute bottom-full left-3 mb-2 bg-white border border-gray-200 rounded-xl shadow-lg p-2 grid grid-cols-10 gap-1 w-72 z-20">
+                  {EMOJIS.map((e) => (
+                    <button key={e} onClick={() => { insertText(e); }} className="text-xl hover:bg-gray-100 rounded p-0.5">
+                      {e}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Popover de plantillas */}
+              {showTemplates && (
+                <div className="absolute bottom-full left-3 mb-2 bg-white border border-gray-200 rounded-xl shadow-lg p-2 w-80 max-h-72 overflow-y-auto z-20">
+                  <div className="flex items-center justify-between px-1 pb-2 mb-1 border-b border-gray-100">
+                    <span className="text-xs font-semibold text-gray-600">Respuestas rápidas</span>
+                    <button onClick={addTemplate} className="text-xs text-blue-600 hover:text-blue-800">+ Nueva</button>
+                  </div>
+                  {templates.length === 0 ? (
+                    <p className="text-xs text-gray-400 p-2">No hay plantillas. Creá una con "+ Nueva".</p>
+                  ) : (
+                    templates.map((t) => (
+                      <div key={t.id} className="flex items-start gap-2 px-2 py-1.5 hover:bg-gray-50 rounded group">
+                        <button
+                          onClick={() => { insertText(t.text); setShowTemplates(false); }}
+                          className="flex-1 text-left"
+                        >
+                          <p className="text-xs font-medium text-gray-800">{t.title}</p>
+                          <p className="text-xs text-gray-500 truncate">{t.text}</p>
+                        </button>
+                        <button onClick={() => removeTemplate(t.id)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100">
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {recording ? (
+                /* Modo grabación */
+                <div className="flex items-center gap-3 px-2">
+                  <span className="flex items-center gap-2 text-red-500 text-sm font-medium flex-1">
+                    <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" /> Grabando audio...
+                  </span>
+                  <button onClick={() => stopRecording(true)} className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => stopRecording(false)}
+                    className="bg-green-500 hover:bg-green-600 text-white rounded-full w-11 h-11 flex items-center justify-center"
+                    title="Enviar audio"
+                  >
+                    <Send size={18} />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-end gap-2">
+                  <button
+                    onClick={() => { setShowEmojis((v) => !v); setShowTemplates(false); }}
+                    className={`p-2 rounded-full flex-shrink-0 ${showEmojis ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}
+                    title="Emojis"
+                  >
+                    <Smile size={20} />
+                  </button>
+                  <button
+                    onClick={() => { setShowTemplates((v) => !v); setShowEmojis(false); }}
+                    className={`p-2 rounded-full flex-shrink-0 ${showTemplates ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}
+                    title="Respuestas rápidas"
+                  >
+                    <FileText size={20} />
+                  </button>
+                  <textarea
+                    value={reply}
+                    onChange={(e) => setReply(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+                    }}
+                    rows={1}
+                    placeholder="Escribí un mensaje... (Enter para enviar)"
+                    className="flex-1 resize-none border border-gray-300 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 max-h-32"
+                  />
+                  {reply.trim() ? (
+                    <button
+                      onClick={handleSend}
+                      disabled={sending}
+                      className="bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white rounded-full w-11 h-11 flex items-center justify-center flex-shrink-0 transition-colors"
+                      title="Enviar"
+                    >
+                      {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={startRecording}
+                      disabled={sendingAudio}
+                      className="bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white rounded-full w-11 h-11 flex items-center justify-center flex-shrink-0 transition-colors"
+                      title="Grabar audio"
+                    >
+                      {sendingAudio ? <Loader2 size={18} className="animate-spin" /> : <Mic size={18} />}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </>
         )}
