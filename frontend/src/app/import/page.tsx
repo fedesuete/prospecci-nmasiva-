@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import { Sidebar } from '@/components/sidebar';
@@ -50,7 +50,7 @@ export default function ImportPage() {
   return (
     <div className="flex">
       <Sidebar />
-      <main className="flex-1 p-8">
+      <main className="flex-1 p-4 md:p-8 pt-16 md:pt-8">
         <h2 className="text-2xl font-bold text-gray-900 mb-6">Importar Leads desde CSV</h2>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 max-w-2xl">

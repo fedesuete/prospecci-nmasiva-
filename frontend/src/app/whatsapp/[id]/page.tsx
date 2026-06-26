@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
@@ -60,7 +60,7 @@ export default function LineDetailPage() {
     return (
       <div className="flex">
         <Sidebar />
-        <main className="flex-1 p-8"><div className="text-gray-500">Cargando...</div></main>
+        <main className="flex-1 p-4 md:p-8 pt-16 md:pt-8"><div className="text-gray-500">Cargando...</div></main>
       </div>
     );
   }
@@ -69,7 +69,7 @@ export default function LineDetailPage() {
     return (
       <div className="flex">
         <Sidebar />
-        <main className="flex-1 p-8"><div className="text-red-500">Linea no encontrada</div></main>
+        <main className="flex-1 p-4 md:p-8 pt-16 md:pt-8"><div className="text-red-500">Linea no encontrada</div></main>
       </div>
     );
   }
@@ -79,7 +79,7 @@ export default function LineDetailPage() {
   return (
     <div className="flex">
       <Sidebar />
-      <main className="flex-1 p-8">
+      <main className="flex-1 p-4 md:p-8 pt-16 md:pt-8">
         <Link href="/whatsapp" className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-4">
           <ArrowLeft size={16} /> Volver a lineas
         </Link>

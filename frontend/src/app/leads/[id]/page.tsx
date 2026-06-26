@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -50,7 +50,7 @@ export default function LeadDetailPage() {
     return (
       <div className="flex">
         <Sidebar />
-        <main className="flex-1 p-8">
+        <main className="flex-1 p-4 md:p-8 pt-16 md:pt-8">
           <div className="text-gray-500">Cargando...</div>
         </main>
       </div>
@@ -61,7 +61,7 @@ export default function LeadDetailPage() {
     return (
       <div className="flex">
         <Sidebar />
-        <main className="flex-1 p-8">
+        <main className="flex-1 p-4 md:p-8 pt-16 md:pt-8">
           <div className="text-red-500">Lead no encontrado</div>
         </main>
       </div>
@@ -73,7 +73,7 @@ export default function LeadDetailPage() {
   return (
     <div className="flex">
       <Sidebar />
-      <main className="flex-1 p-8">
+      <main className="flex-1 p-4 md:p-8 pt-16 md:pt-8">
         <Link href="/leads" className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-4">
           <ArrowLeft size={16} /> Volver a leads
         </Link>
@@ -99,7 +99,7 @@ export default function LeadDetailPage() {
               </div>
 
               <div className="space-y-2 text-sm">
-                <InfoRow label="Teléfono" value={lead.phone} />
+                <InfoRow label="TelÃ©fono" value={lead.phone} />
                 <InfoRow label="Email" value={lead.email} />
                 <InfoRow label="Instagram" value={lead.instagram_handle ? `@${lead.instagram_handle}` : null} />
                 <InfoRow label="Nicho" value={lead.niche} />
@@ -132,7 +132,7 @@ export default function LeadDetailPage() {
                   {history.map((h: any) => (
                     <div key={h.id} className="text-xs text-gray-500">
                       <span className="font-medium">{PIPELINE_LABELS[h.from_status] ?? h.from_status}</span>
-                      {' → '}
+                      {' â†’ '}
                       <span className="font-medium">{PIPELINE_LABELS[h.to_status] ?? h.to_status}</span>
                       <span className="ml-2">{formatDate(h.created_at)}</span>
                       {h.channel_id && <span className="ml-1 text-gray-400">via {CHANNEL_LABELS[h.channel_id] ?? h.channel_id}</span>}
@@ -147,13 +147,13 @@ export default function LeadDetailPage() {
           <div className="lg:col-span-2">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col" style={{ height: '70vh' }}>
               <div className="p-4 border-b border-gray-200">
-                <h3 className="font-semibold text-gray-900">Conversación</h3>
+                <h3 className="font-semibold text-gray-900">ConversaciÃ³n</h3>
               </div>
 
               {/* Lista de mensajes */}
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {messages?.length === 0 ? (
-                  <p className="text-gray-400 text-center mt-8">Sin mensajes aún</p>
+                  <p className="text-gray-400 text-center mt-8">Sin mensajes aÃºn</p>
                 ) : (
                   messages?.map((msg: any) => (
                     <div
@@ -172,12 +172,12 @@ export default function LeadDetailPage() {
                             {CHANNEL_LABELS[msg.channel_id] ?? msg.channel_id}
                           </span>
                           {msg.content_type === 'audio' && (
-                            <span className="text-xs opacity-75">🎵 Audio</span>
+                            <span className="text-xs opacity-75">ðŸŽµ Audio</span>
                           )}
                         </div>
                         <p>{msg.content_type === 'audio' ? '[Nota de voz]' : msg.content}</p>
                         <p className={`text-xs mt-1 ${msg.direction === 'outbound' ? 'text-blue-200' : 'text-gray-400'}`}>
-                          {formatDate(msg.created_at)} · {msg.status}
+                          {formatDate(msg.created_at)} Â· {msg.status}
                         </p>
                       </div>
                     </div>

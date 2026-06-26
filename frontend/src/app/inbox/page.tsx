@@ -6,7 +6,7 @@ import {
   fetchConversations, fetchThread, sendReply, fetchLinesSummary,
   sendReplyAudio, fetchQuickReplies, createQuickReply, deleteQuickReply, type QuickReply,
 } from '@/lib/api';
-import { Inbox, Search, Send, Loader2, Phone, Mic, Smile, FileText, X, Trash2, Square } from 'lucide-react';
+import { Inbox, Search, Send, Loader2, Phone, Mic, Smile, FileText, X, Trash2, Square, ChevronLeft } from 'lucide-react';
 
 const EMOJIS = [
   '😀','😁','😂','🤣','😊','😍','😘','😎','🤩','🥳','👍','👌','🙏','💪','🔥','✨','🎉','✅','❤️','💯',
@@ -192,7 +192,7 @@ export default function InboxPage() {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Barra horizontal de líneas con globito de "sin responder" */}
-        <div className="border-b border-gray-200 bg-white px-3 py-2 flex gap-2 overflow-x-auto items-center flex-shrink-0">
+        <div className="border-b border-gray-200 bg-white pl-14 md:pl-3 pr-3 py-2 flex gap-2 overflow-x-auto items-center flex-shrink-0">
           <button
             onClick={() => setLineFilter(null)}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm whitespace-nowrap border transition-colors ${
@@ -233,7 +233,7 @@ export default function InboxPage() {
         <div className="flex flex-1 overflow-hidden">
 
       {/* Lista de conversaciones */}
-      <div className="w-80 border-r border-gray-200 flex flex-col bg-white">
+      <div className={`${selected ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-80 border-r border-gray-200 bg-white`}>
         <div className="p-4 border-b border-gray-100">
           <h2 className="text-lg font-bold text-gray-900 mb-3">Conversaciones</h2>
           <div className="relative">
@@ -300,7 +300,7 @@ export default function InboxPage() {
       </div>
 
       {/* Panel del chat */}
-      <div className="flex-1 flex flex-col bg-gray-50">
+      <div className={`${selected ? 'flex' : 'hidden md:flex'} flex-1 flex-col bg-gray-50`}>
         {!selected ? (
           <div className="flex-1 flex items-center justify-center text-gray-400">
             <div className="text-center">
@@ -311,7 +311,14 @@ export default function InboxPage() {
         ) : (
           <>
             {/* Header */}
-            <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-3">
+            <div className="bg-white border-b border-gray-200 px-4 md:px-6 py-3 flex items-center gap-3">
+              <button
+                onClick={() => setSelected(null)}
+                className="md:hidden text-gray-500 -ml-1 p-1"
+                aria-label="Volver"
+              >
+                <ChevronLeft size={22} />
+              </button>
               <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm">
                 {thread?.lead?.first_name?.[0]?.toUpperCase() ?? '?'}
               </div>

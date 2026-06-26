@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -36,7 +36,7 @@ export default function DashboardPage() {
   return (
     <div className="flex">
       <Sidebar />
-      <main className="flex-1 p-8">
+      <main className="flex-1 p-4 md:p-8 pt-16 md:pt-8">
         <h2 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h2>
 
         {/* Alertas de lineas caidas */}

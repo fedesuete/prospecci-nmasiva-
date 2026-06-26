@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -42,7 +42,7 @@ export default function LeadsPage() {
   return (
     <div className="flex">
       <Sidebar />
-      <main className="flex-1 p-8">
+      <main className="flex-1 p-4 md:p-8 pt-16 md:pt-8">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-900">Leads ({count})</h2>
         </div>
@@ -65,7 +65,7 @@ export default function LeadsPage() {
             onChange={(e) => { setFilters({ ...filters, temperature: e.target.value }); setPage(0); }}
           >
             <option value="">Temperatura</option>
-            <option value="cold">Frío</option>
+            <option value="cold">FrÃ­o</option>
             <option value="warm">Caliente</option>
           </select>
           <input
@@ -101,7 +101,7 @@ export default function LeadsPage() {
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-gray-500">Nombre</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-500">Empresa</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-500">Teléfono</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-500">TelÃ©fono</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-500">Nicho</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-500">Ciudad</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-500">Temp.</th>
@@ -159,7 +159,7 @@ export default function LeadsPage() {
           </table>
         </div>
 
-        {/* Paginación */}
+        {/* PaginaciÃ³n */}
         <div className="flex items-center justify-between mt-4">
           <span className="text-sm text-gray-500">
             {page * limit + 1}-{Math.min((page + 1) * limit, count)} de {count}

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { Sidebar } from '@/components/sidebar';
@@ -25,7 +25,7 @@ export default function SequencesPage() {
   return (
     <div className="flex">
       <Sidebar />
-      <main className="flex-1 p-8">
+      <main className="flex-1 p-4 md:p-8 pt-16 md:pt-8">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-900">Secuencias</h2>
           <button
@@ -202,7 +202,7 @@ function CreateSequenceForm({
           className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
         >
           <option value="">Cualquier temperatura</option>
-          <option value="cold">Frío</option>
+          <option value="cold">FrÃ­o</option>
           <option value="warm">Caliente</option>
         </select>
       </div>
@@ -249,8 +249,8 @@ function CreateSequenceForm({
                 className="border border-gray-300 rounded px-1 py-1 text-xs"
               >
                 <option value="always">Siempre</option>
-                <option value="if_no_reply">Si no respondió</option>
-                <option value="if_replied">Si respondió</option>
+                <option value="if_no_reply">Si no respondiÃ³</option>
+                <option value="if_replied">Si respondiÃ³</option>
               </select>
             </div>
             {steps.length > 1 && (
