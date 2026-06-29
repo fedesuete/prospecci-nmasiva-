@@ -8,6 +8,7 @@ import {
   fetchInboxTags, setLeadTags,
 } from '@/lib/api';
 import { Inbox, Search, Send, Loader2, Phone, Mic, Smile, FileText, X, Trash2, Square, ChevronLeft, Tag, Plus } from 'lucide-react';
+import { tagColor } from '@/lib/utils';
 
 const EMOJIS = [
   '😀','😁','😂','🤣','😊','😍','😘','😎','🤩','🥳','👍','👌','🙏','💪','🔥','✨','🎉','✅','❤️','💯',
@@ -325,7 +326,7 @@ export default function InboxPage() {
                     {Array.isArray(c.tags) && c.tags.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1">
                         {c.tags.slice(0, 3).map((t: string) => (
-                          <span key={t} className="text-[9px] bg-blue-50 text-blue-600 rounded px-1 py-0.5">{t}</span>
+                          <span key={t} className={`text-[9px] rounded px-1 py-0.5 ${tagColor(t)}`}>{t}</span>
                         ))}
                       </div>
                     )}
@@ -374,9 +375,9 @@ export default function InboxPage() {
             <div className="bg-white border-b border-gray-100 px-4 md:px-6 py-1.5 flex items-center gap-1.5 flex-wrap">
               <Tag size={13} className="text-gray-400 flex-shrink-0" />
               {leadTags.map((t) => (
-                <span key={t} className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 text-xs rounded-full pl-2 pr-1 py-0.5">
+                <span key={t} className={`inline-flex items-center gap-1 text-xs rounded-full pl-2 pr-1 py-0.5 ${tagColor(t)}`}>
                   {t}
-                  <button onClick={() => removeTag(t)} className="hover:text-blue-900"><X size={12} /></button>
+                  <button onClick={() => removeTag(t)} className="hover:opacity-60"><X size={12} /></button>
                 </span>
               ))}
               {showTagInput ? (

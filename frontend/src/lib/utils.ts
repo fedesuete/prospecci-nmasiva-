@@ -40,6 +40,28 @@ export const TEMP_LABELS: Record<string, string> = {
   warm: 'Caliente',
 };
 
+// Color consistente por nombre de etiqueta (cada etiqueta siempre el mismo color)
+const TAG_COLORS = [
+  'bg-blue-100 text-blue-700',
+  'bg-green-100 text-green-700',
+  'bg-purple-100 text-purple-700',
+  'bg-orange-100 text-orange-700',
+  'bg-pink-100 text-pink-700',
+  'bg-teal-100 text-teal-700',
+  'bg-amber-100 text-amber-800',
+  'bg-red-100 text-red-700',
+  'bg-indigo-100 text-indigo-700',
+  'bg-cyan-100 text-cyan-700',
+  'bg-lime-100 text-lime-700',
+  'bg-rose-100 text-rose-700',
+];
+
+export function tagColor(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return TAG_COLORS[h % TAG_COLORS.length];
+}
+
 export function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('es-AR', {
     day: '2-digit',
