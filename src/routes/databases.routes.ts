@@ -6,18 +6,21 @@ import { getRecommendations } from '../modules/sources/recommendations.js';
 import { parse } from 'csv-parse/sync';
 import { normalizePhone } from '../utils/phone.js';
 import type { LeadTemperature } from '../db/types.js';
+import { adminOnly, canAccessLineId } from '../middleware/line-access.js';
 
 export async function databasesRoutes(app: FastifyInstance) {
-  // Recomendaciones de búsqueda (combos rubro+zona no generados aún)
+  // Recomendaciones de búsqueda (combos rubro+zona no generados aún) — admin
   app.get('/api/databases/recommendations', async (request, reply) => {
+    if (!adminOnly(request.auth!, reply)) return;
     const q = request.query as Record<string, string>;
     const count = q.count ? parseInt(q.count) : 6;
     const recs = await getRecommendations(Math.min(Math.max(count, 1), 20));
     return reply.send(recs);
   });
 
-  // Generar una base de datos desde Google Maps (Places API)
+  // Generar una base de datos desde Google Maps (Places API) — admin
   app.post('/api/databases/generate', async (request, reply) => {
+    if (!adminOnly(request.auth!, reply)) return;
     const body = request.body as {
       rubro?: string;
       zona?: string;
@@ -65,8 +68,9 @@ export async function databasesRoutes(app: FastifyInstance) {
     return reply.send(data);
   });
 
-  // Subir nueva base de datos (solo guardar, no importar)
+  // Subir nueva base de datos (solo guardar, no importar) — admin
   app.post('/api/databases', async (request, reply) => {
+    if (!adminOnly(request.auth!, reply)) return;
     const parts = request.parts();
     let fileBuffer: Buffer | null = null;
     let fileName = '';
@@ -135,10 +139,14 @@ export async function databasesRoutes(app: FastifyInstance) {
     return reply.status(201).send(db);
   });
 
-  // Asignar base de datos a una línea e importar leads
+  // Asignar base de datos a una línea e importar leads (agente: solo a sus líneas)
   app.post('/api/databases/:id/assign', async (request, reply) => {
     const { id } = request.params as { id: string };
     const body = request.body as { line_id: string };
+
+    if (!body.line_id || !(await canAccessLineId(request.auth!, body.line_id))) {
+      return reply.status(403).send({ error: 'No tenés acceso a esa línea' });
+    }
 
     // Obtener la base de datos con el archivo
     const db = await queryOne<any>(
@@ -179,8 +187,9 @@ export async function databasesRoutes(app: FastifyInstance) {
     return reply.send(result);
   });
 
-  // Eliminar base de datos
+  // Eliminar base de datos (admin)
   app.delete('/api/databases/:id', async (request, reply) => {
+    if (!adminOnly(request.auth!, reply)) return;
     const { id } = request.params as { id: string };
     await query('DELETE FROM lead_databases WHERE id = $1', [id]);
     return reply.send({ ok: true });

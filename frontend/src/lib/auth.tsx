@@ -29,7 +29,7 @@ export function useAuth() {
 }
 
 // Rutas permitidas para empleados (rol agent)
-const AGENT_ALLOWED = ['/inbox'];
+const AGENT_ALLOWED = ['/inbox', '/whatsapp', '/databases'];
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);

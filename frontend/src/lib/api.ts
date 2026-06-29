@@ -267,6 +267,17 @@ export async function fetchLinesSummary() {
   );
 }
 
+export async function fetchInboxTags() {
+  return apiFetch<string[]>('/inbox/tags');
+}
+
+export async function setLeadTags(leadId: string, tags: string[]) {
+  return apiFetch<{ tags: string[] }>(`/inbox/lead/${leadId}/tags`, {
+    method: 'POST',
+    body: JSON.stringify({ tags }),
+  });
+}
+
 export async function fetchThread(leadId: string) {
   return apiFetch<{ lead: any; line_id: string | null; messages: any[] }>(`/inbox/thread/${leadId}`);
 }

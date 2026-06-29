@@ -28,7 +28,11 @@ const adminNav = [
   { href: '/usuarios', label: 'Usuarios', icon: UserCog },
 ];
 
-const agentNav = [{ href: '/inbox', label: 'Inbox', icon: Inbox }];
+const agentNav = [
+  { href: '/inbox', label: 'Inbox', icon: Inbox },
+  { href: '/whatsapp', label: 'WhatsApp Lines', icon: Phone },
+  { href: '/databases', label: 'Bases de Datos', icon: Database },
+];
 
 export function Sidebar() {
   const pathname = usePathname();

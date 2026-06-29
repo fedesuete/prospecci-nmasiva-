@@ -13,8 +13,11 @@ import {
 } from '@/lib/api';
 import { Upload, Database, Trash2, CheckCircle, AlertCircle, ArrowRight, Sparkles, Loader2, X, MapPin, Lightbulb, RefreshCw } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
+import { useAuth } from '@/lib/auth';
 
 export default function DatabasesPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role !== 'agent';
   const [databases, setDatabases] = useState<any[]>([]);
   const [lines, setLines] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -170,15 +173,18 @@ export default function DatabasesPage() {
       <main className="flex-1 p-4 md:p-8 pt-16 md:pt-8">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-900">Bases de Datos</h2>
-          <button
-            onClick={openGenerator}
-            className="bg-gradient-to-r from-purple-600 to-blue-600 hover:opacity-90 text-white text-sm font-medium px-4 py-2 rounded-lg flex items-center gap-2"
-          >
-            <Sparkles size={16} /> Generar base de datos
-          </button>
+          {isAdmin && (
+            <button
+              onClick={openGenerator}
+              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:opacity-90 text-white text-sm font-medium px-4 py-2 rounded-lg flex items-center gap-2"
+            >
+              <Sparkles size={16} /> Generar base de datos
+            </button>
+          )}
         </div>
 
-        {/* Upload */}
+        {/* Upload (solo admin) */}
+        {isAdmin && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Subir nueva base</h3>
 
@@ -236,6 +242,7 @@ export default function DatabasesPage() {
             </>
           )}
         </div>
+        )}
 
         {/* Bases sin asignar */}
         {pending.length > 0 && (
@@ -258,9 +265,11 @@ export default function DatabasesPage() {
                         </p>
                       </div>
                     </div>
-                    <button onClick={() => handleDelete(db.id)} className="text-red-400 hover:text-red-600 p-2">
-                      <Trash2 size={16} />
-                    </button>
+                    {isAdmin && (
+                      <button onClick={() => handleDelete(db.id)} className="text-red-400 hover:text-red-600 p-2">
+                        <Trash2 size={16} />
+                      </button>
+                    )}
                   </div>
 
                   {/* Asignar a línea */}
@@ -342,9 +351,11 @@ export default function DatabasesPage() {
                           </p>
                         </div>
                       </div>
-                      <button onClick={() => handleDelete(db.id)} className="text-red-400 hover:text-red-600 p-2">
-                        <Trash2 size={16} />
-                      </button>
+                      {isAdmin && (
+                        <button onClick={() => handleDelete(db.id)} className="text-red-400 hover:text-red-600 p-2">
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 );

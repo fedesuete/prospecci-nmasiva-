@@ -5,8 +5,9 @@ import { Sidebar } from '@/components/sidebar';
 import {
   fetchConversations, fetchThread, sendReply, fetchLinesSummary,
   sendReplyAudio, fetchQuickReplies, createQuickReply, deleteQuickReply, type QuickReply,
+  fetchInboxTags, setLeadTags,
 } from '@/lib/api';
-import { Inbox, Search, Send, Loader2, Phone, Mic, Smile, FileText, X, Trash2, Square, ChevronLeft } from 'lucide-react';
+import { Inbox, Search, Send, Loader2, Phone, Mic, Smile, FileText, X, Trash2, Square, ChevronLeft, Tag, Plus } from 'lucide-react';
 
 const EMOJIS = [
   '😀','😁','😂','🤣','😊','😍','😘','😎','🤩','🥳','👍','👌','🙏','💪','🔥','✨','🎉','✅','❤️','💯',
@@ -47,9 +48,39 @@ export default function InboxPage() {
   const chunksRef = useRef<Blob[]>([]);
   const cancelRef = useRef(false);
 
+  // Etiquetas
+  const [allTags, setAllTags] = useState<string[]>([]);
+  const [tagDraft, setTagDraft] = useState('');
+  const [showTagInput, setShowTagInput] = useState(false);
+
   useEffect(() => {
     fetchQuickReplies().then(setTemplates).catch(() => {});
+    fetchInboxTags().then(setAllTags).catch(() => {});
   }, []);
+
+  const leadTags: string[] = thread?.lead?.tags ?? [];
+
+  const saveTags = async (tags: string[]) => {
+    if (!selected) return;
+    setThread((prev) => (prev ? { ...prev, lead: { ...prev.lead, tags } } : prev));
+    try {
+      await setLeadTags(selected, tags);
+      fetchInboxTags().then(setAllTags).catch(() => {});
+      loadConversations();
+    } catch (err) {
+      alert((err as Error).message);
+    }
+  };
+
+  const addTag = (t: string) => {
+    const tag = t.trim();
+    if (!tag || leadTags.includes(tag)) { setTagDraft(''); setShowTagInput(false); return; }
+    saveTags([...leadTags, tag]);
+    setTagDraft('');
+    setShowTagInput(false);
+  };
+
+  const removeTag = (t: string) => saveTags(leadTags.filter((x) => x !== t));
 
   const insertText = (t: string) => {
     setReply((prev) => (prev ? prev + (prev.endsWith(' ') ? '' : ' ') + t : t));
@@ -291,6 +322,13 @@ export default function InboxPage() {
                     {c.line_name && (
                       <span className="text-[10px] text-gray-400 truncate block mt-0.5">{c.line_name}</span>
                     )}
+                    {Array.isArray(c.tags) && c.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {c.tags.slice(0, 3).map((t: string) => (
+                          <span key={t} className="text-[9px] bg-blue-50 text-blue-600 rounded px-1 py-0.5">{t}</span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </button>
               );
@@ -330,6 +368,36 @@ export default function InboxPage() {
                   <Phone size={11} /> {thread?.lead?.phone ?? ''}
                 </p>
               </div>
+            </div>
+
+            {/* Barra de etiquetas (seguimiento) */}
+            <div className="bg-white border-b border-gray-100 px-4 md:px-6 py-1.5 flex items-center gap-1.5 flex-wrap">
+              <Tag size={13} className="text-gray-400 flex-shrink-0" />
+              {leadTags.map((t) => (
+                <span key={t} className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 text-xs rounded-full pl-2 pr-1 py-0.5">
+                  {t}
+                  <button onClick={() => removeTag(t)} className="hover:text-blue-900"><X size={12} /></button>
+                </span>
+              ))}
+              {showTagInput ? (
+                <input
+                  autoFocus
+                  list="tag-suggestions"
+                  value={tagDraft}
+                  onChange={(e) => setTagDraft(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') addTag(tagDraft); if (e.key === 'Escape') { setShowTagInput(false); setTagDraft(''); } }}
+                  onBlur={() => { if (tagDraft.trim()) addTag(tagDraft); else setShowTagInput(false); }}
+                  placeholder="etiqueta..."
+                  className="text-xs border border-gray-300 rounded-full px-2 py-0.5 w-28 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
+              ) : (
+                <button onClick={() => setShowTagInput(true)} className="inline-flex items-center gap-0.5 text-xs text-gray-500 hover:text-blue-600 border border-dashed border-gray-300 rounded-full px-2 py-0.5">
+                  <Plus size={12} /> Etiqueta
+                </button>
+              )}
+              <datalist id="tag-suggestions">
+                {allTags.map((t) => <option key={t} value={t} />)}
+              </datalist>
             </div>
 
             {/* Mensajes */}

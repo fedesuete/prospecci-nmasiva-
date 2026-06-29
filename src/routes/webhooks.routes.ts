@@ -6,6 +6,7 @@ import { transitionLead } from '../modules/pipeline/transitions.js';
 import { insertMessage } from '../db/queries/messages.js';
 import { findLeadByPhone } from '../db/queries/leads.js';
 import { normalizePhone } from '../utils/phone.js';
+import { adminOnly, canAccessInstance, canAccessLineId, resolveScope } from '../middleware/line-access.js';
 
 // Helper para llamar a Evolution API
 async function evolutionFetch(path: string, options: RequestInit = {}) {
@@ -226,16 +227,21 @@ export async function webhooksRoutes(app: FastifyInstance) {
   // Gestión de WhatsApp Lines + Evolution API
   // ============================================
 
-  // Listar lineas de nuestra DB
-  app.get('/api/whatsapp-lines', async (_request, reply) => {
-    const data = await query('SELECT * FROM whatsapp_lines ORDER BY created_at ASC');
+  // Listar lineas de nuestra DB (agente: solo las suyas)
+  app.get('/api/whatsapp-lines', async (request, reply) => {
+    const scope = await resolveScope(request.auth!);
+    const data = scope === null
+      ? await query('SELECT * FROM whatsapp_lines ORDER BY created_at ASC')
+      : await query('SELECT * FROM whatsapp_lines WHERE id = ANY($1) ORDER BY created_at ASC', [scope]);
     return reply.send(data);
   });
 
-  // Listar instancias directamente desde Evolution API
-  // Toggle prospeccion ON/OFF
+  // Toggle prospeccion ON/OFF (agente: solo sus líneas)
   app.post('/api/whatsapp-lines/:id/toggle-prospecting', async (request, reply) => {
     const { id } = request.params as { id: string };
+    if (!(await canAccessLineId(request.auth!, id))) {
+      return reply.status(403).send({ error: 'No tenés acceso a esta línea' });
+    }
     const data = await queryOne(
       `UPDATE whatsapp_lines SET prospecting_active = NOT prospecting_active, updated_at = now()
        WHERE id = $1 RETURNING id, display_name, prospecting_active`,
@@ -246,8 +252,9 @@ export async function webhooksRoutes(app: FastifyInstance) {
     return reply.send(data);
   });
 
-  // Estado de prospeccion de todas las lineas
-  app.get('/api/whatsapp-lines/prospecting-status', async (_request, reply) => {
+  // Estado de prospeccion de las lineas (agente: solo las suyas)
+  app.get('/api/whatsapp-lines/prospecting-status', async (request, reply) => {
+    const scope = await resolveScope(request.auth!);
     const lines = await query(`
       SELECT wl.id, wl.display_name, wl.instance_name, wl.phone_number, wl.status,
              wl.prospecting_active, wl.sent_today, wl.daily_limit,
@@ -259,13 +266,15 @@ export async function webhooksRoutes(app: FastifyInstance) {
              (SELECT COUNT(*) FROM audio_variants av WHERE av.whatsapp_line_id = wl.id AND av.is_active = true
              ) as audios_count
       FROM whatsapp_lines wl
+      ${scope === null ? '' : 'WHERE wl.id = ANY($1)'}
       ORDER BY wl.created_at ASC
-    `);
+    `, scope === null ? [] : [scope]);
     return reply.send(lines);
   });
 
-  // Editar configuracion de una linea
+  // Editar configuracion de una linea (admin)
   app.patch('/api/whatsapp-lines/:id', async (request, reply) => {
+    if (!adminOnly(request.auth!, reply)) return;
     const { id } = request.params as { id: string };
     const body = request.body as {
       display_name?: string;
@@ -302,7 +311,8 @@ export async function webhooksRoutes(app: FastifyInstance) {
     return reply.send(data);
   });
 
-  app.get('/api/evolution/instances', async (_request, reply) => {
+  app.get('/api/evolution/instances', async (request, reply) => {
+    if (!adminOnly(request.auth!, reply)) return;
     try {
       const instances = await evolutionFetch('/instance/fetchInstances');
       return reply.send(instances);
@@ -311,8 +321,9 @@ export async function webhooksRoutes(app: FastifyInstance) {
     }
   });
 
-  // Crear nueva instancia en Evolution API + registrar en nuestra DB
+  // Crear nueva instancia en Evolution API + registrar en nuestra DB (admin)
   app.post('/api/whatsapp-lines/create', async (request, reply) => {
+    if (!adminOnly(request.auth!, reply)) return;
     const body = request.body as {
       instance_name: string;
       display_name: string;
@@ -367,9 +378,12 @@ export async function webhooksRoutes(app: FastifyInstance) {
     }
   });
 
-  // Conectar instancia existente (genera QR code)
+  // Conectar/reconectar instancia existente (genera QR) — agente: solo sus líneas
   app.get('/api/whatsapp-lines/:instanceName/connect', async (request, reply) => {
     const { instanceName } = request.params as { instanceName: string };
+    if (!(await canAccessInstance(request.auth!, instanceName))) {
+      return reply.status(403).send({ error: 'No tenés acceso a esta línea' });
+    }
     try {
       const result = await evolutionFetch(`/instance/connect/${instanceName}`);
       return reply.send({
@@ -382,9 +396,12 @@ export async function webhooksRoutes(app: FastifyInstance) {
     }
   });
 
-  // Ver estado de conexión de una instancia
+  // Ver estado de conexión de una instancia — agente: solo sus líneas
   app.get('/api/whatsapp-lines/:instanceName/status', async (request, reply) => {
     const { instanceName } = request.params as { instanceName: string };
+    if (!(await canAccessInstance(request.auth!, instanceName))) {
+      return reply.status(403).send({ error: 'No tenés acceso a esta línea' });
+    }
     try {
       const result = await evolutionFetch(`/instance/connectionState/${instanceName}`);
       const state = result.state || result.instance?.state || 'unknown';
@@ -424,8 +441,9 @@ export async function webhooksRoutes(app: FastifyInstance) {
     }
   });
 
-  // Desconectar/cerrar instancia
+  // Desconectar/cerrar instancia (admin)
   app.post('/api/whatsapp-lines/:instanceName/disconnect', async (request, reply) => {
+    if (!adminOnly(request.auth!, reply)) return;
     const { instanceName } = request.params as { instanceName: string };
     try {
       const result = await evolutionFetch(`/instance/logout/${instanceName}`, { method: 'DELETE' });
@@ -439,8 +457,9 @@ export async function webhooksRoutes(app: FastifyInstance) {
     }
   });
 
-  // Eliminar instancia
+  // Eliminar instancia (admin)
   app.delete('/api/whatsapp-lines/:instanceName', async (request, reply) => {
+    if (!adminOnly(request.auth!, reply)) return;
     const { instanceName } = request.params as { instanceName: string };
     try {
       await evolutionFetch(`/instance/delete/${instanceName}`, { method: 'DELETE' });
@@ -451,8 +470,9 @@ export async function webhooksRoutes(app: FastifyInstance) {
     }
   });
 
-  // Configurar webhook de una instancia existente
+  // Configurar webhook de una instancia existente (admin)
   app.post('/api/whatsapp-lines/:instanceName/webhook', async (request, reply) => {
+    if (!adminOnly(request.auth!, reply)) return;
     const { instanceName } = request.params as { instanceName: string };
     try {
       const result = await evolutionFetch(`/webhook/set/${instanceName}`, {
@@ -478,6 +498,7 @@ export async function webhooksRoutes(app: FastifyInstance) {
 
   // Importar instancia existente de Evolution API a nuestra DB
   app.post('/api/whatsapp-lines/import', async (request, reply) => {
+    if (!adminOnly(request.auth!, reply)) return;
     const body = request.body as {
       instance_name: string;
       display_name?: string;
@@ -548,6 +569,9 @@ export async function webhooksRoutes(app: FastifyInstance) {
 
   app.post('/api/whatsapp-lines/:instanceName/sync-chats', async (request, reply) => {
     const { instanceName } = request.params as { instanceName: string };
+    if (!(await canAccessInstance(request.auth!, instanceName))) {
+      return reply.status(403).send({ error: 'No tenés acceso a esta línea' });
+    }
     try {
       const { syncExistingChats } = await import('../modules/channels/whatsapp/chat-sync.js');
       const result = await syncExistingChats(instanceName);
@@ -563,6 +587,7 @@ export async function webhooksRoutes(app: FastifyInstance) {
 
   // Audios filtrados por linea
   app.get('/api/audio-variants', async (request, reply) => {
+    if (!adminOnly(request.auth!, reply)) return;
     const q = request.query as Record<string, string>;
     if (q.line_id) {
       const data = await query('SELECT * FROM audio_variants WHERE whatsapp_line_id = $1 ORDER BY created_at DESC', [q.line_id]);
@@ -573,6 +598,7 @@ export async function webhooksRoutes(app: FastifyInstance) {
   });
 
   app.post('/api/audio-variants', async (request, reply) => {
+    if (!adminOnly(request.auth!, reply)) return;
     const parts = request.parts();
     let fileBuffer: Buffer | null = null;
     let fileName = '';
@@ -616,6 +642,7 @@ export async function webhooksRoutes(app: FastifyInstance) {
   });
 
   app.delete('/api/audio-variants/:id', async (request, reply) => {
+    if (!adminOnly(request.auth!, reply)) return;
     const { id } = request.params as { id: string };
     await query('DELETE FROM audio_variants WHERE id = $1', [id]);
     return reply.send({ ok: true });
@@ -625,7 +652,8 @@ export async function webhooksRoutes(app: FastifyInstance) {
   // Monitor de líneas — chequea estado real contra Evolution API
   // ============================================
 
-  app.get('/api/whatsapp-lines/health', async (_request, reply) => {
+  app.get('/api/whatsapp-lines/health', async (request, reply) => {
+    if (!adminOnly(request.auth!, reply)) return;
     try {
       const lines = await query('SELECT * FROM whatsapp_lines ORDER BY created_at ASC');
       const instances = await evolutionFetch('/instance/fetchInstances') as any[];

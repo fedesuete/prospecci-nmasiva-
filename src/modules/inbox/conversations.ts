@@ -19,6 +19,7 @@ export interface ConversationSummary {
   company_name: string | null;
   phone: string;
   pipeline_status: string;
+  tags: string[];
   unread: string; // count viene como string desde pg
 }
 
@@ -47,7 +48,7 @@ export async function listConversations(scope: LineScope, limit = 100, lineId?: 
        SELECT DISTINCT ON (m.lead_id)
          m.lead_id, m.content, m.direction, m.content_type, m.created_at, m.whatsapp_line_id,
          wl.display_name AS line_name,
-         l.first_name, l.last_name, l.company_name, l.phone, l.pipeline_status,
+         l.first_name, l.last_name, l.company_name, l.phone, l.pipeline_status, l.tags,
          (SELECT count(*) FROM messages mm
             WHERE mm.lead_id = m.lead_id AND mm.direction = 'inbound' AND mm.status = 'received') AS unread
        FROM messages m
@@ -84,7 +85,7 @@ export async function getThread(leadId: string, scope: LineScope): Promise<Threa
   if (!(await leadInScope(leadId, scope))) return null;
 
   const lead = await queryOne(
-    `SELECT id, first_name, last_name, company_name, phone, email, pipeline_status, assigned_line_id
+    `SELECT id, first_name, last_name, company_name, phone, email, pipeline_status, assigned_line_id, tags
      FROM leads WHERE id = $1`,
     [leadId]
   );

@@ -17,6 +17,7 @@ import {
   fetchProspectingStatus,
 } from '@/lib/api';
 import Link from 'next/link';
+import { useAuth } from '@/lib/auth';
 import { Phone, Wifi, WifiOff, AlertTriangle, Plus, QrCode, RefreshCw, Trash2, Link as LinkIcon, Download, Settings, Play, Pause, AlertCircle } from 'lucide-react';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
@@ -27,6 +28,8 @@ const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 };
 
 export default function WhatsAppPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role !== 'agent';
   const [lines, setLines] = useState<any[]>([]);
   const [evoInstances, setEvoInstances] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -166,7 +169,7 @@ export default function WhatsAppPage() {
             >
               <RefreshCw size={14} /> Actualizar
             </button>
-            {unregistered.length > 0 && (
+            {isAdmin && unregistered.length > 0 && (
               <button
                 onClick={() => setShowImport(!showImport)}
                 className="px-3 py-2 border border-blue-300 text-blue-700 rounded-lg text-sm flex items-center gap-1 hover:bg-blue-50"
@@ -174,12 +177,14 @@ export default function WhatsAppPage() {
                 <Download size={14} /> Importar existente ({unregistered.length})
               </button>
             )}
-            <button
-              onClick={() => setShowCreate(!showCreate)}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm"
-            >
-              <Plus size={16} /> Nueva linea
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setShowCreate(!showCreate)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm"
+              >
+                <Plus size={16} /> Nueva linea
+              </button>
+            )}
           </div>
         </div>
 
@@ -390,12 +395,14 @@ export default function WhatsAppPage() {
 
                   {/* Acciones */}
                   <div className="flex gap-2 flex-wrap">
-                    <button
-                      onClick={() => setEditLine(line)}
-                      className="flex items-center gap-1 px-3 py-1.5 bg-gray-50 text-gray-700 rounded-lg text-xs hover:bg-gray-100"
-                    >
-                      <Settings size={14} /> Configurar
-                    </button>
+                    {isAdmin && (
+                      <button
+                        onClick={() => setEditLine(line)}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-gray-50 text-gray-700 rounded-lg text-xs hover:bg-gray-100"
+                      >
+                        <Settings size={14} /> Configurar
+                      </button>
+                    )}
                     {(line.status === 'paused' || line.status === 'warming_up' || line.status === 'banned') && (
                       <button
                         onClick={() => handleConnect(line.instance_name)}
@@ -412,29 +419,33 @@ export default function WhatsAppPage() {
                     >
                       <RefreshCw size={14} /> Estado
                     </button>
-                    <button
-                      onClick={() => handleSetupWebhook(line.instance_name)}
-                      disabled={isLoading}
-                      className="flex items-center gap-1 px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-xs hover:bg-purple-100 disabled:opacity-50"
-                    >
-                      <LinkIcon size={14} /> Config Webhook
-                    </button>
-                    {line.status === 'active' && (
-                      <button
-                        onClick={() => handleDisconnect(line.instance_name)}
-                        disabled={isLoading}
-                        className="flex items-center gap-1 px-3 py-1.5 bg-orange-50 text-orange-700 rounded-lg text-xs hover:bg-orange-100 disabled:opacity-50"
-                      >
-                        <WifiOff size={14} /> Desconectar
-                      </button>
+                    {isAdmin && (
+                      <>
+                        <button
+                          onClick={() => handleSetupWebhook(line.instance_name)}
+                          disabled={isLoading}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-xs hover:bg-purple-100 disabled:opacity-50"
+                        >
+                          <LinkIcon size={14} /> Config Webhook
+                        </button>
+                        {line.status === 'active' && (
+                          <button
+                            onClick={() => handleDisconnect(line.instance_name)}
+                            disabled={isLoading}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-orange-50 text-orange-700 rounded-lg text-xs hover:bg-orange-100 disabled:opacity-50"
+                          >
+                            <WifiOff size={14} /> Desconectar
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDelete(line.instance_name)}
+                          disabled={isLoading}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-700 rounded-lg text-xs hover:bg-red-100 disabled:opacity-50"
+                        >
+                          <Trash2 size={14} /> Eliminar
+                        </button>
+                      </>
                     )}
-                    <button
-                      onClick={() => handleDelete(line.instance_name)}
-                      disabled={isLoading}
-                      className="flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-700 rounded-lg text-xs hover:bg-red-100 disabled:opacity-50"
-                    >
-                      <Trash2 size={14} /> Eliminar
-                    </button>
                   </div>
                 </div>
               );

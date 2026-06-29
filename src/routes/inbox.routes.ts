@@ -1,18 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import { getUnifiedInbox } from '../modules/inbox/unified.js';
-import { listConversations, getThread, resolveReplyLine, getLineSummary, type LineScope } from '../modules/inbox/conversations.js';
-import { getUserLineIds } from '../db/queries/users.js';
+import { listConversations, getThread, resolveReplyLine, getLineSummary } from '../modules/inbox/conversations.js';
 import { insertMessage, updateMessageStatus } from '../db/queries/messages.js';
 import { convertToOgg } from '../modules/channels/whatsapp/convert-audio.js';
+import { query, queryOne } from '../config/database.js';
 import { env } from '../config/env.js';
-import type { AuthContext } from '../middleware/auth.js';
+import { resolveScope } from '../middleware/line-access.js';
 import { randomBytes } from 'crypto';
-
-// Resuelve qué líneas puede ver el usuario: null = todas (admin/servicio)
-async function resolveScope(auth: AuthContext): Promise<LineScope> {
-  if (auth.role === 'admin' || auth.isService) return null;
-  return getUserLineIds(auth.userId!);
-}
 
 export async function inboxRoutes(app: FastifyInstance) {
   // Lista de mensajes entrantes (vista legacy) — scopeada
@@ -170,5 +164,42 @@ export async function inboxRoutes(app: FastifyInstance) {
       await updateMessageStatus(msg.id, 'failed');
       return reply.send({ success: false, error: (err as Error).message });
     }
+  });
+
+  // ===== Etiquetas (seguimiento de clientes) =====
+
+  // Lista de etiquetas ya usadas (para sugerencias)
+  app.get('/api/inbox/tags', async (_request, reply) => {
+    const rows = await query<{ tag: string }>(
+      `SELECT DISTINCT unnest(tags) AS tag FROM leads WHERE tags IS NOT NULL AND array_length(tags, 1) > 0 ORDER BY tag`
+    );
+    return reply.send(rows.map((r) => r.tag));
+  });
+
+  // Setear las etiquetas de un lead (reemplaza el set completo) — scopeado
+  app.post('/api/inbox/lead/:leadId/tags', async (request, reply) => {
+    const { leadId } = request.params as { leadId: string };
+    const body = request.body as { tags?: string[] };
+    const tags = Array.isArray(body.tags)
+      ? Array.from(new Set(body.tags.map((t) => t.trim()).filter(Boolean))).slice(0, 20)
+      : [];
+
+    // Verificar alcance: el agente solo puede etiquetar conversaciones de sus líneas
+    const scope = await resolveScope(request.auth!);
+    if (scope !== null) {
+      if (scope.length === 0) return reply.status(403).send({ error: 'Sin acceso' });
+      const ok = await queryOne(
+        'SELECT 1 FROM messages WHERE lead_id = $1 AND whatsapp_line_id = ANY($2) LIMIT 1',
+        [leadId, scope]
+      );
+      if (!ok) return reply.status(403).send({ error: 'Conversación fuera de tu alcance' });
+    }
+
+    const updated = await queryOne<{ tags: string[] }>(
+      'UPDATE leads SET tags = $1 WHERE id = $2 RETURNING tags',
+      [tags, leadId]
+    );
+    if (!updated) return reply.status(404).send({ error: 'Lead no encontrado' });
+    return reply.send({ tags: updated.tags });
   });
 }
