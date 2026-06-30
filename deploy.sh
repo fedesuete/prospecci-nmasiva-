@@ -13,7 +13,7 @@ if [ "$LOCAL" != "$REMOTE" ]; then
     git reset --hard origin/main
 
     # Rebuild y restart
-    docker compose -f docker-compose.prod.yml up -d --build prospeccion-api prospeccion-frontend prospeccion-sender 2>&1
+    docker compose -f docker-compose.prod.yml up -d --build prospeccion-api prospeccion-frontend prospeccion-sender prospeccion-worker 2>&1
 
     # Re-copiar audios al volumen (se pierden con rebuild)
     sleep 3

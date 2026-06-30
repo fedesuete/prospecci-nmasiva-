@@ -43,6 +43,25 @@ services:
     networks:
       - easypanel-testfederico
 
+  prospeccion-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: prospeccion-worker
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgres://postgres:b395dd333e170341efb7@testfederico_evolution-api-db:5432/prospeccion
+      - REDIS_URL=redis://default:46a0e41c45782434e10b@testfederico_evolution-api-redis:6379
+      - EVOLUTION_API_URL=http://testfederico_evolution-api:8080
+      - EVOLUTION_API_KEY=429683C4C977415CAAFCCE10F7D57E11
+      - NODE_ENV=production
+      - TIMEZONE=America/Argentina/Buenos_Aires
+      - AUDIO_STORAGE_PATH=/app/storage/audios
+    volumes:
+      - audio_storage:/app/storage/audios
+    networks:
+      - easypanel-testfederico
+
   prospeccion-frontend:
     build:
       context: ./frontend
