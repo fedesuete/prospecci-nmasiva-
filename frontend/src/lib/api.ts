@@ -77,10 +77,35 @@ export async function fetchSequenceDetail(id: string) {
   return apiFetch<any>(`/sequences/${id}`);
 }
 
-export async function createSequence(data: any) {
+export async function createSequence(data: { name: string; steps: any[] }) {
   return apiFetch<any>('/sequences', {
     method: 'POST',
     body: JSON.stringify(data),
+  });
+}
+
+export async function updateSequence(id: string, data: { name: string; steps: any[] }) {
+  return apiFetch<any>(`/sequences/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function setSequenceActive(id: string, is_active: boolean) {
+  return apiFetch<{ ok: boolean }>(`/sequences/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ is_active }),
+  });
+}
+
+export async function deleteSequence(id: string) {
+  return apiFetch<{ ok: boolean }>(`/sequences/${id}`, { method: 'DELETE' });
+}
+
+export async function enrollSequenceByTag(id: string, tag: string, limit?: number) {
+  return apiFetch<{ enrolled: number; skipped: number; total: number }>(`/sequences/${id}/enroll-bulk`, {
+    method: 'POST',
+    body: JSON.stringify({ tag, limit }),
   });
 }
 

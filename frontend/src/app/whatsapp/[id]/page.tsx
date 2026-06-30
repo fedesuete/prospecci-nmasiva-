@@ -236,9 +236,8 @@ function SequencesTab({ lineId, sequences, onUpdate }: { lineId: string; sequenc
     try {
       await createSequence({
         name,
-        whatsapp_line_id: lineId,
         steps: [
-          { step_order: 1, channel_id: 'whatsapp', message_template: '', use_audio: true, delay_hours: 0, condition: 'always' },
+          { channel_id: 'whatsapp', message_template: '', use_audio: true, delay_hours: 0, condition: 'always' },
         ],
       });
       setName('');
