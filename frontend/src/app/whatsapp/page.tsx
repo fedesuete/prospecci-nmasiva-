@@ -38,6 +38,10 @@ export default function WhatsAppPage() {
   const [qrData, setQrData] = useState<{ instanceName: string; qrcode: string } | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [editLine, setEditLine] = useState<any | null>(null);
+  // Vinculación por código
+  const [pairNumber, setPairNumber] = useState('');
+  const [pairCode, setPairCode] = useState('');
+  const [gettingCode, setGettingCode] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -64,6 +68,8 @@ export default function WhatsAppPage() {
 
   const handleConnect = async (instanceName: string) => {
     setActionLoading(instanceName);
+    setPairNumber('');
+    setPairCode('');
     try {
       const result = await connectWhatsAppLine(instanceName);
       if (result.qrcode) {
@@ -76,6 +82,21 @@ export default function WhatsAppPage() {
       alert((err as Error).message);
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleGetPairingCode = async () => {
+    if (!qrData || !pairNumber.trim()) return;
+    setGettingCode(true);
+    setPairCode('');
+    try {
+      const result = await connectWhatsAppLine(qrData.instanceName, pairNumber.trim());
+      if (result.pairingCode) setPairCode(result.pairingCode);
+      else alert('No se pudo generar el código. Verificá el número (con código de país).');
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setGettingCode(false);
     }
   };
 
@@ -234,6 +255,35 @@ export default function WhatsAppPage() {
                 >
                   Ya escanee
                 </button>
+              </div>
+
+              {/* Alternativa: vincular por código */}
+              <div className="mt-5 pt-4 border-t border-gray-100">
+                <p className="text-xs font-semibold text-gray-600 mb-2">¿El QR no funciona? Vincular por código:</p>
+                <div className="flex gap-2">
+                  <input
+                    value={pairNumber}
+                    onChange={(e) => setPairNumber(e.target.value)}
+                    placeholder="Número con país (ej: 595981...)"
+                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  />
+                  <button
+                    onClick={handleGetPairingCode}
+                    disabled={gettingCode || !pairNumber.trim()}
+                    className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {gettingCode ? '...' : 'Obtener código'}
+                  </button>
+                </div>
+                {pairCode && (
+                  <div className="mt-3 bg-blue-50 border border-blue-100 rounded-lg p-3 text-center">
+                    <p className="text-2xl font-bold tracking-widest text-blue-700">{pairCode}</p>
+                    <p className="text-xs text-gray-500 mt-2">
+                      En el teléfono: WhatsApp → Dispositivos vinculados → Vincular un dispositivo →
+                      <strong> Vincular con número de teléfono</strong> → escribí este código.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

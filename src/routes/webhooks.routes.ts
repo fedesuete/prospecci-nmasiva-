@@ -378,14 +378,19 @@ export async function webhooksRoutes(app: FastifyInstance) {
     }
   });
 
-  // Conectar/reconectar instancia existente (genera QR) — agente: solo sus líneas
+  // Conectar/reconectar instancia (QR, o código si se pasa ?number=) — agente: solo sus líneas
   app.get('/api/whatsapp-lines/:instanceName/connect', async (request, reply) => {
     const { instanceName } = request.params as { instanceName: string };
+    const { number } = request.query as { number?: string };
     if (!(await canAccessInstance(request.auth!, instanceName))) {
       return reply.status(403).send({ error: 'No tenés acceso a esta línea' });
     }
     try {
-      const result = await evolutionFetch(`/instance/connect/${instanceName}`);
+      const cleanNumber = number ? number.replace(/[^\d]/g, '') : '';
+      const path = cleanNumber
+        ? `/instance/connect/${instanceName}?number=${cleanNumber}`
+        : `/instance/connect/${instanceName}`;
+      const result = await evolutionFetch(path);
       return reply.send({
         qrcode: result.base64 ?? null,
         pairingCode: result.pairingCode ?? null,

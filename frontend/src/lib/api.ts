@@ -134,8 +134,11 @@ export async function importWhatsAppLine(data: { instance_name: string; display_
   });
 }
 
-export async function connectWhatsAppLine(instanceName: string) {
-  return apiFetch<{ qrcode: string | null; pairingCode: string | null }>(`/whatsapp-lines/${instanceName}/connect`);
+export async function connectWhatsAppLine(instanceName: string, number?: string) {
+  const q = number ? `?number=${encodeURIComponent(number)}` : '';
+  return apiFetch<{ qrcode: string | null; pairingCode: string | null; code: string | null }>(
+    `/whatsapp-lines/${instanceName}/connect${q}`
+  );
 }
 
 export async function getWhatsAppLineStatus(instanceName: string) {
