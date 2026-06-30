@@ -12,6 +12,7 @@ import { deployRoutes } from './routes/deploy.routes.js';
 import { authRoutes } from './routes/auth.routes.js';
 import { usersRoutes } from './routes/users.routes.js';
 import { quickRepliesRoutes } from './routes/quick-replies.routes.js';
+import { emailAccountsRoutes } from './routes/email-accounts.routes.js';
 import { authMiddleware } from './middleware/auth.js';
 
 const app = Fastify({ logger: true });
@@ -46,6 +47,7 @@ async function start() {
   await app.register(authRoutes);
   await app.register(usersRoutes);
   await app.register(quickRepliesRoutes);
+  await app.register(emailAccountsRoutes);
   await app.register(leadsRoutes);
   await app.register(sequencesRoutes);
   await app.register(messagesRoutes);

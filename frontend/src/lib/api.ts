@@ -393,6 +393,43 @@ export async function deleteUser(id: string) {
   return apiFetch<{ ok: boolean }>(`/users/${id}`, { method: 'DELETE' });
 }
 
+// Casillas de email (admin)
+export interface EmailAccount {
+  id: string;
+  name: string;
+  smtp_host: string;
+  smtp_port: number;
+  smtp_user: string;
+  from_name: string | null;
+  daily_limit: number;
+  sent_today: number;
+  warmup_daily_increment: number;
+  is_active: boolean;
+}
+
+export async function fetchEmailAccounts() {
+  return apiFetch<EmailAccount[]>('/email-accounts');
+}
+
+export async function createEmailAccount(data: Record<string, any>) {
+  return apiFetch<EmailAccount>('/email-accounts', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function updateEmailAccount(id: string, data: Record<string, any>) {
+  return apiFetch<{ ok: boolean }>(`/email-accounts/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export async function deleteEmailAccount(id: string) {
+  return apiFetch<{ ok: boolean }>(`/email-accounts/${id}`, { method: 'DELETE' });
+}
+
+export async function testEmailAccount(id: string, to?: string) {
+  return apiFetch<{ ok: boolean; to?: string; error?: string }>(`/email-accounts/${id}/test`, {
+    method: 'POST',
+    body: JSON.stringify({ to }),
+  });
+}
+
 export async function changeMyPassword(currentPassword: string, newPassword: string) {
   return apiFetch<{ ok: boolean }>('/auth/change-password', {
     method: 'POST',

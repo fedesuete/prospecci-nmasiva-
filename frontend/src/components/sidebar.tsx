@@ -16,6 +16,7 @@ import {
   LogOut,
   Menu,
   X,
+  Mail,
 } from 'lucide-react';
 
 const adminNav = [
@@ -23,6 +24,7 @@ const adminNav = [
   { href: '/leads', label: 'Leads', icon: Users },
   { href: '/databases', label: 'Bases de Datos', icon: Database },
   { href: '/sequences', label: 'Secuencias', icon: Zap },
+  { href: '/emails', label: 'Emails', icon: Mail },
   { href: '/inbox', label: 'Inbox', icon: Inbox },
   { href: '/whatsapp', label: 'WhatsApp Lines', icon: Phone },
   { href: '/usuarios', label: 'Usuarios', icon: UserCog },
