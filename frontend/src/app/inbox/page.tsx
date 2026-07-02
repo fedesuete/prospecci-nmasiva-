@@ -7,8 +7,32 @@ import {
   sendReplyAudio, fetchQuickReplies, createQuickReply, deleteQuickReply, type QuickReply,
   fetchInboxTags, setLeadTags,
 } from '@/lib/api';
-import { Inbox, Search, Send, Loader2, Phone, Mic, Smile, FileText, X, Trash2, Square, ChevronLeft, Tag, Plus } from 'lucide-react';
+import { Inbox, Search, Send, Loader2, Phone, Mic, Smile, FileText, X, Trash2, Square, ChevronLeft, Tag, Plus, Volume2, VolumeX } from 'lucide-react';
 import { tagColor } from '@/lib/utils';
+
+// Sonido "ka-ching" (caja registradora) sintetizado con Web Audio — sin archivos externos
+let _audioCtx: AudioContext | null = null;
+function playMoneySound() {
+  try {
+    if (!_audioCtx) _audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const ctx = _audioCtx;
+    if (ctx.state === 'suspended') ctx.resume();
+    const now = ctx.currentTime;
+    const notes = [{ f: 1318.5, t: 0 }, { f: 1760, t: 0.09 }, { f: 2093, t: 0.18 }];
+    for (const n of notes) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = n.f;
+      gain.gain.setValueAtTime(0.0001, now + n.t);
+      gain.gain.exponentialRampToValueAtTime(0.3, now + n.t + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + n.t + 0.32);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(now + n.t);
+      osc.stop(now + n.t + 0.38);
+    }
+  } catch { /* ignore */ }
+}
 
 const EMOJIS = [
   '😀','😁','😂','🤣','😊','😍','😘','😎','🤩','🥳','👍','👌','🙏','💪','🔥','✨','🎉','✅','❤️','💯',
@@ -38,6 +62,24 @@ export default function InboxPage() {
   const [lineSummary, setLineSummary] = useState<any[]>([]);
   const [lineFilter, setLineFilter] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Sonido de "dinero" al entrar un mensaje
+  const [soundOn, setSoundOn] = useState(true);
+  const soundOnRef = useRef(true);
+  const prevUnreadRef = useRef<number | null>(null);
+  useEffect(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('inbox_sound') : null;
+    if (saved === '0') { setSoundOn(false); soundOnRef.current = false; }
+  }, []);
+  const toggleSound = () => {
+    setSoundOn((v) => {
+      const nv = !v;
+      soundOnRef.current = nv;
+      if (typeof window !== 'undefined') localStorage.setItem('inbox_sound', nv ? '1' : '0');
+      if (nv) playMoneySound(); // feedback al activar
+      return nv;
+    });
+  };
 
   // Emojis, plantillas y grabación de audio
   const [showEmojis, setShowEmojis] = useState(false);
@@ -147,7 +189,15 @@ export default function InboxPage() {
   const loadConversations = useCallback(() => {
     const params: Record<string, string> = { limit: '100' };
     if (lineFilter) params.line_id = lineFilter;
-    fetchConversations(params).then(setConversations).catch(() => {});
+    fetchConversations(params).then((convs) => {
+      setConversations(convs);
+      // Detectar mensajes nuevos (sube el total sin leer) -> sonido de dinero
+      const totalUnread = convs.reduce((s: number, c: any) => s + (parseInt(c.unread ?? '0') || 0), 0);
+      if (prevUnreadRef.current !== null && totalUnread > prevUnreadRef.current && soundOnRef.current) {
+        playMoneySound();
+      }
+      prevUnreadRef.current = totalUnread;
+    }).catch(() => {});
     fetchLinesSummary().then(setLineSummary).catch(() => {});
   }, [lineFilter]);
 
@@ -225,6 +275,13 @@ export default function InboxPage() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Barra horizontal de líneas con globito de "sin responder" */}
         <div className="border-b border-gray-200 bg-white pl-14 md:pl-3 pr-3 py-2 flex gap-2 overflow-x-auto items-center flex-shrink-0">
+          <button
+            onClick={toggleSound}
+            title={soundOn ? 'Silenciar sonido de mensajes' : 'Activar sonido de mensajes'}
+            className={`flex-shrink-0 p-1.5 rounded-lg border ${soundOn ? 'bg-green-50 border-green-200 text-green-600' : 'border-gray-200 text-gray-400'}`}
+          >
+            {soundOn ? <Volume2 size={16} /> : <VolumeX size={16} />}
+          </button>
           <button
             onClick={() => setLineFilter(null)}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm whitespace-nowrap border transition-colors ${
