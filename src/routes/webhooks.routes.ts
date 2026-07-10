@@ -113,11 +113,11 @@ export async function webhooksRoutes(app: FastifyInstance) {
       return reply.send({ ok: true });
     }
 
-    // Solo procesar mensajes entrantes (no grupos, no propios)
+    // Procesar mensajes entrantes Y salientes (no grupos). fromMe = lo mandamos nosotros.
     const isMessageEvent = event === 'messages.upsert' || event === 'MESSAGES_UPSERT' || event === 'messages.update';
     const isGroup = remoteJid.includes('@g.us') || remoteJid.includes('@broadcast');
 
-    if (!isMessageEvent || fromMe || isGroup || !remoteJid) {
+    if (!isMessageEvent || isGroup || !remoteJid) {
       return reply.send({ ok: true, skipped: event });
     }
 
@@ -129,22 +129,44 @@ export async function webhooksRoutes(app: FastifyInstance) {
         return reply.send({ ok: true, skipped: 'phone invalido' });
       }
 
-      // Si el lead no existe, crearlo como nuevo para no perder respuestas
+      // Si es un mensaje propio, esperar un momento: puede que el sistema recién
+      // esté registrando su propio envío (evita duplicados)
+      if (fromMe) await new Promise((r) => setTimeout(r, 2000));
+
+      // Si el lead no existe, crearlo para no perder la conversación
       let lead = await findLeadByPhone(phone);
       if (!lead) {
-        // Guardar igualmente el mensaje — puede ser alguien que nos escribió sin estar en la base
         console.log(`[webhook] Lead no encontrado para ${phone}, creando nuevo`);
         const { upsertLead } = await import('../db/queries/leads.js');
         lead = await upsertLead({
           first_name: data.pushName || 'Contacto WA',
           phone,
           temperature: 'warm',
-          pipeline_status: 'respondio',
+          pipeline_status: fromMe ? 'contactado' : 'respondio',
         });
       }
 
       const message = data.message || {};
       const mediaId: string = body.data?.key?.id || data.key?.id || '';
+
+      // Para mensajes propios: evitar duplicar lo que ya registró el sistema
+      if (fromMe && mediaId) {
+        const yaEsta = await queryOne('SELECT id FROM messages WHERE external_id = $1 LIMIT 1', [mediaId]);
+        if (yaEsta) return reply.send({ ok: true, skipped: 'ya registrado' });
+
+        // Envío hecho por el sistema que todavía no tiene external_id: completarlo
+        const pendiente = await queryOne<{ id: string }>(
+          `SELECT id FROM messages
+           WHERE lead_id = $1 AND direction = 'outbound' AND external_id IS NULL
+             AND created_at > now() - interval '2 minutes'
+           ORDER BY created_at DESC LIMIT 1`,
+          [lead.id]
+        );
+        if (pendiente) {
+          await query('UPDATE messages SET external_id = $1 WHERE id = $2', [mediaId, pendiente.id]);
+          return reply.send({ ok: true, skipped: 'enviado por el sistema' });
+        }
+      }
 
       // Detectar tipo de mensaje y, si es audio/imagen, descargar el media
       let contentType: 'text' | 'audio' | 'image' = 'text';
@@ -175,14 +197,15 @@ export async function webhooksRoutes(app: FastifyInstance) {
         lead_id: lead.id,
         channel_id: 'whatsapp',
         whatsapp_line_id: line?.id,
-        direction: 'inbound',
+        direction: fromMe ? 'outbound' : 'inbound',
         content_type: contentType,
         content,
         external_id: mediaId,
-        status: 'received',
+        status: fromMe ? 'sent' : 'received',
       });
 
-      if (lead.pipeline_status === 'contactado') {
+      // Solo un mensaje del cliente marca "respondió"
+      if (!fromMe && lead.pipeline_status === 'contactado') {
         await transitionLead(lead.id, 'respondio', {
           changedBy: 'webhook',
           channelId: 'whatsapp',
@@ -190,7 +213,7 @@ export async function webhooksRoutes(app: FastifyInstance) {
         });
       }
 
-      console.log(`[webhook] WA entrante de ${phone}: "${content.substring(0, 50)}"`);
+      console.log(`[webhook] WA ${fromMe ? 'saliente hacia' : 'entrante de'} ${phone}: "${content.substring(0, 50)}"`);
       return reply.send({ ok: true, lead_id: lead.id });
     } catch (err) {
       console.error('[webhook] Error Evolution:', err);
