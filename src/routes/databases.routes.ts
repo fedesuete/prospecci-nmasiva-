@@ -29,6 +29,7 @@ export async function databasesRoutes(app: FastifyInstance) {
       todos_los_rubros?: boolean;
       radio_km?: number;
       pais?: string;
+      modo_email?: boolean;
     };
 
     if (!body.zona?.trim()) {
@@ -47,6 +48,7 @@ export async function databasesRoutes(app: FastifyInstance) {
         todosLosRubros: !!body.todos_los_rubros,
         radioKm: body.radio_km && body.radio_km > 0 ? Math.min(body.radio_km, 25) : undefined,
         regionCode: body.pais || 'PY',
+        modoEmail: !!body.modo_email,
       });
       return reply.send(result);
     } catch (err) {

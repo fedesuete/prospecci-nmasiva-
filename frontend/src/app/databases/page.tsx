@@ -42,6 +42,7 @@ export default function DatabasesPage() {
   const [genSoloSinWeb, setGenSoloSinWeb] = useState(true);
   const [genTodos, setGenTodos] = useState(false);
   const [genRadio, setGenRadio] = useState(0);
+  const [genModoEmail, setGenModoEmail] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [genResult, setGenResult] = useState<any>(null);
   const [genError, setGenError] = useState('');
@@ -88,10 +89,11 @@ export default function DatabasesPage() {
         rubro: genRubro.trim(),
         zona: genZona.trim(),
         cantidad: genCantidad,
-        solo_sin_web: genSoloSinWeb,
+        solo_sin_web: genModoEmail ? false : genSoloSinWeb,
         todos_los_rubros: genTodos,
         radio_km: genRadio > 0 ? genRadio : undefined,
         pais: genPais,
+        modo_email: genModoEmail,
       });
       setGenResult(result);
       loadData();
@@ -380,9 +382,32 @@ export default function DatabasesPage() {
             </div>
 
             <div className="p-5 space-y-4">
+              {/* Selector de canal: WhatsApp (sin web) vs Email (con web) */}
+              <div className="grid grid-cols-2 gap-2 bg-gray-100 p-1 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setGenModoEmail(false)}
+                  className={`py-2 rounded-lg text-sm font-medium transition-colors ${!genModoEmail ? 'bg-white shadow-sm text-green-700' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  📱 WhatsApp
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGenModoEmail(true)}
+                  className={`py-2 rounded-lg text-sm font-medium transition-colors ${genModoEmail ? 'bg-white shadow-sm text-blue-700' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  📧 Email
+                </button>
+              </div>
+
               <p className="text-sm text-gray-500">
-                Busca negocios reales en Google Maps, <strong>verifica que tengan WhatsApp</strong> y
-                crea una base lista para asignar. Recorre varios barrios hasta juntar la cantidad que pidas.
+                {genModoEmail ? (
+                  <>Busca negocios <strong>CON página web</strong> en Google Maps, entra al sitio y
+                  <strong> extrae el email de contacto</strong> (gratis). Ideal para el pitch de pauta/mejora web.</>
+                ) : (
+                  <>Busca negocios reales en Google Maps, <strong>verifica que tengan WhatsApp</strong> y
+                  crea una base lista para asignar. Recorre varios barrios hasta juntar la cantidad que pidas.</>
+                )}
               </p>
 
               {/* Sugerencias (ideas que aún no generaste) */}
@@ -457,7 +482,7 @@ export default function DatabasesPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Objetivo (con WhatsApp)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{genModoEmail ? 'Objetivo (con email)' : 'Objetivo (con WhatsApp)'}</label>
                   <input
                     type="number"
                     min={1}
@@ -501,14 +526,21 @@ export default function DatabasesPage() {
                 </p>
               </div>
 
-              <label className="flex items-center gap-2 text-sm text-gray-700 bg-purple-50 border border-purple-100 rounded-lg px-3 py-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={genSoloSinWeb}
-                  onChange={(e) => setGenSoloSinWeb(e.target.checked)}
-                />
-                <span>Solo negocios <strong>SIN página web</strong> (recomendado)</span>
-              </label>
+              {genModoEmail ? (
+                <div className="flex items-start gap-2 text-sm text-blue-800 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                  <span>📧</span>
+                  <span>Trae solo negocios <strong>CON web</strong> y guarda su email. Puede tardar un poco más (visita cada sitio). No todos publican el correo, así que el total puede ser menor al objetivo.</span>
+                </div>
+              ) : (
+                <label className="flex items-center gap-2 text-sm text-gray-700 bg-purple-50 border border-purple-100 rounded-lg px-3 py-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={genSoloSinWeb}
+                    onChange={(e) => setGenSoloSinWeb(e.target.checked)}
+                  />
+                  <span>Solo negocios <strong>SIN página web</strong> (recomendado)</span>
+                </label>
+              )}
 
               {genError && (
                 <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
@@ -521,15 +553,24 @@ export default function DatabasesPage() {
                   <div className="flex items-center gap-1 text-green-700 font-medium">
                     <CheckCircle size={14} /> Base creada: {genResult.name}
                   </div>
-                  <div className="text-gray-600 text-xs">
-                    {genResult.encontrados} encontrados en {genResult.zonas_buscadas} zona(s) ·{' '}
-                    {genResult.sin_web} sin web ·{' '}
-                    <strong>{genResult.guardados} guardados</strong> (con WhatsApp ✓)
-                  </div>
+                  {genResult.modo_email ? (
+                    <div className="text-gray-600 text-xs">
+                      {genResult.encontrados} encontrados en {genResult.zonas_buscadas} zona(s) ·{' '}
+                      {genResult.con_web} con web ·{' '}
+                      <strong>{genResult.guardados} guardados</strong> (con email ✓)
+                    </div>
+                  ) : (
+                    <div className="text-gray-600 text-xs">
+                      {genResult.encontrados} encontrados en {genResult.zonas_buscadas} zona(s) ·{' '}
+                      {genResult.sin_web} sin web ·{' '}
+                      <strong>{genResult.guardados} guardados</strong> (con WhatsApp ✓)
+                    </div>
+                  )}
                   {genResult.alcanzo_objetivo === false && (
                     <div className="text-orange-600 text-xs">
-                      No se llegó al objetivo de {genResult.objetivo}: se agotaron los negocios disponibles.
-                      Probá otra zona/rubro o destildá "solo sin web".
+                      {genResult.modo_email
+                        ? `No se llegó al objetivo de ${genResult.objetivo}: no todos los negocios con web publican su email. Probá otra zona/rubro o subí el radio.`
+                        : `No se llegó al objetivo de ${genResult.objetivo}: se agotaron los negocios disponibles. Probá otra zona/rubro o destildá "solo sin web".`}
                     </div>
                   )}
                   <div className="text-gray-500 text-xs">

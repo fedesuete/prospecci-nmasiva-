@@ -2,6 +2,7 @@ import { searchBusinesses, geocodeZone } from './google-places.js';
 import { expandLocalities } from './localities.js';
 import { RUBROS } from './recommendations.js';
 import { filterWithWhatsApp } from './whatsapp-check.js';
+import { extractEmailFromSite, mapLimit } from './email-scraper.js';
 import { normalizePhone } from '../../utils/phone.js';
 import { queryOne } from '../../config/database.js';
 
@@ -14,6 +15,7 @@ export interface GenerateOptions {
   soloConWhatsApp?: boolean; // verificar y dejar solo números con WhatsApp (default true)
   radioKm?: number;         // si se da, barre un radio en km alrededor de la zona (grilla)
   regionCode?: string;      // 'PY' (default) | 'AR' | ...
+  modoEmail?: boolean;      // base para EMAIL: trae negocios CON web y extrae el email del sitio
 }
 
 // Grilla de puntos (circular) alrededor de un centro para barrer un radio.
@@ -45,6 +47,9 @@ export interface GenerateResult {
   zonas_buscadas: number;
   objetivo: number;
   alcanzo_objetivo: boolean;
+  modo_email: boolean;          // true si se generó una base de emails
+  con_web: number;              // cuántos tenían web (útil en modo email)
+  emails_encontrados: number;   // cuántos emails se lograron extraer
 }
 
 function csvCell(value: string): string {
@@ -94,9 +99,12 @@ export async function generateDatabase(opts: GenerateOptions): Promise<GenerateR
   }
 
   const seen = new Set<string>();       // dedup por teléfono (global)
-  const lines: string[] = ['nombre,telefono,rubro,ciudad'];
+  const header = opts.modoEmail ? 'nombre,telefono,email,rubro,ciudad' : 'nombre,telefono,rubro,ciudad';
+  const lines: string[] = [header];
   let encontrados = 0;
   let sinWeb = 0;
+  let conWeb = 0;
+  let emailsEncontrados = 0;
   let validPhones = 0;
   let busquedas = 0;
 
@@ -123,28 +131,45 @@ export async function generateDatabase(opts: GenerateOptions): Promise<GenerateR
     busquedas++;
     encontrados += businesses.length;
 
-    // Recolectar candidatos nuevos de este lote (rubro, sin web, teléfono válido, no duplicado)
-    const batch: Array<{ name: string; phone: string; rubro: string }> = [];
+    // Recolectar candidatos nuevos de este lote (rubro, filtro web, teléfono válido, no duplicado)
+    const batch: Array<{ name: string; phone: string; rubro: string; website: string | null; email?: string }> = [];
     for (const b of businesses) {
       const hasWeb = !!b.website;
-      if (!hasWeb) sinWeb++;
-      if (opts.soloSinWeb && hasWeb) continue;
+      if (hasWeb) conWeb++; else sinWeb++;
+
+      if (opts.modoEmail) {
+        // Modo EMAIL: solo negocios CON web (de ahí se saca el correo)
+        if (!hasWeb) continue;
+      } else if (opts.soloSinWeb && hasWeb) {
+        continue;
+      }
 
       const phone = b.phone ? normalizePhone(b.phone) : null;
       if (!phone || seen.has(phone)) continue;
       seen.add(phone);
-      batch.push({ name: b.name, phone, rubro: step.rubro });
+      batch.push({ name: b.name, phone, rubro: step.rubro, website: b.website });
     }
 
-    // Verificar WhatsApp y quedarse solo con los que tienen (salvo que se desactive)
     let validos = batch;
-    if (opts.soloConWhatsApp !== false && batch.length > 0) {
+    if (opts.modoEmail) {
+      // Scrapear el email de cada web (gratis) y quedarse con los que tengan email
+      const scraped = await mapLimit(batch, 6, async (x) => {
+        const email = x.website ? await extractEmailFromSite(x.website) : null;
+        return { ...x, email: email ?? undefined };
+      });
+      validos = scraped.filter((x) => x.email);
+      emailsEncontrados += validos.length;
+    } else if (opts.soloConWhatsApp !== false && batch.length > 0) {
+      // Verificar WhatsApp y quedarse solo con los que tienen (salvo que se desactive)
       const conWa = new Set(await filterWithWhatsApp(batch.map((x) => x.phone)));
       validos = batch.filter((x) => conWa.has(x.phone));
     }
 
     for (const x of validos) {
-      lines.push([csvCell(x.name), x.phone, csvCell(x.rubro), csvCell(opts.zona)].join(','));
+      const row = opts.modoEmail
+        ? [csvCell(x.name), x.phone, csvCell(x.email ?? ''), csvCell(x.rubro), csvCell(opts.zona)]
+        : [csvCell(x.name), x.phone, csvCell(x.rubro), csvCell(opts.zona)];
+      lines.push(row.join(','));
       validPhones++;
       if (validPhones >= opts.cantidad) break;
     }
@@ -153,7 +178,9 @@ export async function generateDatabase(opts: GenerateOptions): Promise<GenerateR
   const csv = lines.join('\n');
   const totalRows = lines.length - 1;
   const rubroLabel = opts.todosLosRubros ? 'Todos los comercios' : opts.rubro;
-  const name = `${rubroLabel} - ${opts.zona}${opts.soloSinWeb ? ' (sin web)' : ''}`;
+  const name = opts.modoEmail
+    ? `${rubroLabel} - ${opts.zona} (emails)`
+    : `${rubroLabel} - ${opts.zona}${opts.soloSinWeb ? ' (sin web)' : ''}`;
 
   const db = await queryOne<{ id: string }>(
     `INSERT INTO lead_databases
@@ -175,5 +202,8 @@ export async function generateDatabase(opts: GenerateOptions): Promise<GenerateR
     zonas_buscadas: busquedas,
     objetivo: opts.cantidad,
     alcanzo_objetivo: validPhones >= opts.cantidad,
+    modo_email: !!opts.modoEmail,
+    con_web: conWeb,
+    emails_encontrados: emailsEncontrados,
   };
 }

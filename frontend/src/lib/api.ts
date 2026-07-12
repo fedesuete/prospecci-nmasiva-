@@ -210,6 +210,7 @@ export async function generateDatabase(data: {
   todos_los_rubros?: boolean;
   radio_km?: number;
   pais?: string;
+  modo_email?: boolean;
 }) {
   return apiFetch<{
     database_id: string;
@@ -221,6 +222,9 @@ export async function generateDatabase(data: {
     zonas_buscadas: number;
     objetivo: number;
     alcanzo_objetivo: boolean;
+    modo_email: boolean;
+    con_web: number;
+    emails_encontrados: number;
   }>('/databases/generate', {
     method: 'POST',
     body: JSON.stringify(data),
